@@ -4,8 +4,10 @@ export const MEMBERSTACK_CONFIG = {
 };
 
 // Check if a member is an admin
+// Uses NEXT_PUBLIC_ prefix so it's available client-side
 export function isAdmin(memberId: string): boolean {
-  const adminIds = (process.env.ADMIN_MEMBER_IDS || "")
+  if (!memberId) return false;
+  const adminIds = (process.env.NEXT_PUBLIC_ADMIN_MEMBER_IDS || "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);

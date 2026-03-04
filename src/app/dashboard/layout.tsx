@@ -7,8 +7,7 @@ import { isAdmin } from "@/lib/memberstack";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { userId } = useAuth();
-  const memberId = userId || "";
-  const admin = isAdmin(memberId);
+  const admin = userId ? isAdmin(userId) : false;
 
   return (
     <div className="min-h-screen bg-background">

@@ -5,11 +5,24 @@ import { Sidebar } from "@/components/ui/Sidebar";
 import { useAuth } from "@memberstack/react";
 import { isAdmin } from "@/lib/memberstack";
 import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
 
 function AdminContent({ children }: { children: React.ReactNode }) {
-  const { userId } = useAuth();
-  const memberId = userId || "";
-  const admin = isAdmin(memberId);
+  const { userId, status } = useAuth();
+
+  // Wait for userId to be available before checking admin status
+  if (!userId || status === "LOADING") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <p className="text-muted">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const admin = isAdmin(userId);
 
   if (!admin) {
     return (
@@ -17,15 +30,22 @@ function AdminContent({ children }: { children: React.ReactNode }) {
         <Sidebar isAdmin={false} />
         <main className="lg:pl-64">
           <div className="flex min-h-[80vh] items-center justify-center px-4">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <ShieldAlert className="h-12 w-12 text-loss" />
-              <h1 className="text-xl font-semibold text-foreground">
-                Access Denied
-              </h1>
-              <p className="text-sm text-muted">
-                You don&apos;t have admin privileges. Contact your fund
-                administrator.
-              </p>
+            <div className="flex flex-col items-center gap-6 text-center">
+              <ShieldAlert className="h-16 w-16 text-loss" />
+              <div>
+                <h1 className="text-xl font-semibold text-foreground">
+                  Access Denied
+                </h1>
+                <p className="mt-2 text-sm text-muted">
+                  Admin privileges required. Contact your fund manager.
+                </p>
+              </div>
+              <Link
+                href="/dashboard"
+                className="rounded-lg bg-accent px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              >
+                Back to Dashboard
+              </Link>
             </div>
           </div>
         </main>

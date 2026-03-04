@@ -1,61 +1,92 @@
 "use client";
 
 import { useMemberstackModal, useAuth } from "@memberstack/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { isLoggedIn, status } = useAuth();
   const { openModal } = useMemberstackModal();
-  const router = useRouter();
-  const [hasChecked, setHasChecked] = useState(false);
-
-  const isLoading = status === "LOADING";
+  const [authReady, setAuthReady] = useState(false);
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoading) {
-      setHasChecked(true);
+    if (status === "LOADING") return;
+
+    // If logged in, mark ready immediately
+    if (isLoggedIn) {
+      setAuthReady(true);
+      return;
     }
-  }, [isLoading]);
 
+    // Give Memberstack time to restore session before showing login UI
+    const timer = setTimeout(() => {
+      setAuthReady(true);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [status, isLoggedIn]);
+
+  // If already logged in, redirect to dashboard (in useEffect, not render)
   useEffect(() => {
-    if (hasChecked && isLoggedIn) {
-      router.push("/dashboard");
+    if (authReady && isLoggedIn && !redirectedRef.current) {
+      redirectedRef.current = true;
+      window.location.href = "/dashboard";
     }
-  }, [hasChecked, isLoggedIn, router]);
+  }, [authReady, isLoggedIn]);
 
-  useEffect(() => {
-    if (hasChecked && !isLoggedIn) {
-      openModal({ type: "LOGIN" }).then(({ data }) => {
+  const handleSignIn = () => {
+    openModal({ type: "LOGIN" })
+      .then(({ data }) => {
         if (data?.id) {
-          router.push("/dashboard");
+          window.location.href = "/dashboard";
         }
+      })
+      .catch(() => {
+        // User closed the modal - do nothing
       });
-    }
-  }, [hasChecked, isLoggedIn, openModal, router]);
+  };
 
+  // Still loading
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  // Logged in - show redirecting state
+  if (isLoggedIn) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+          <p className="text-muted">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in - show login UI
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-6">
-        <h1 className="text-3xl font-bold text-foreground">GBH Investments</h1>
-        {isLoading ? (
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-accent" />
-            <p className="text-muted">Loading...</p>
-          </div>
-        ) : (
-          <button
-            onClick={() =>
-              openModal({ type: "LOGIN" }).then(({ data }) => {
-                if (data?.id) router.push("/dashboard");
-              })
-            }
-            className="rounded-lg bg-accent px-6 py-3 font-medium text-white transition-colors hover:bg-accent-hover"
-          >
-            Sign In to Dashboard
-          </button>
-        )}
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-5xl font-bold text-accent">GBH</div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Investment Dashboard
+          </h1>
+          <p className="text-sm text-muted">
+            Sign in to view your portfolio
+          </p>
+        </div>
+        <button
+          onClick={handleSignIn}
+          className="rounded-lg bg-accent px-8 py-3 font-medium text-white transition-colors hover:bg-accent-hover"
+        >
+          Sign In
+        </button>
       </div>
     </div>
   );

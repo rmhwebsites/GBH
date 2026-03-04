@@ -55,7 +55,7 @@ export default function DashboardPage() {
           totalCost={portfolio.totalCost}
           totalGainLoss={portfolio.totalGainLoss}
           totalGainLossPercent={portfolio.totalGainLossPercent}
-          holdingsCount={portfolio.holdings.length}
+          holdingsCount={portfolio.holdings?.length || 0}
         />
       )}
 

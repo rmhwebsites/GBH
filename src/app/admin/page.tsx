@@ -37,7 +37,7 @@ export default function AdminDashboard() {
       href: "/admin/holdings",
       icon: TrendingUp,
       label: "Manage Holdings",
-      desc: `${portfolio?.holdings.length || 0} active stocks`,
+      desc: `${portfolio?.holdings?.length || 0} active stocks`,
     },
     {
       href: "/admin/trades",

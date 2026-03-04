@@ -1,29 +1,44 @@
 "use client";
 
-import { useMemberstackModal, useAuth } from "@memberstack/react";
-import { useEffect, useState } from "react";
+import { useAuth } from "@memberstack/react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, userId, status } = useAuth();
-  const { openModal } = useMemberstackModal();
-  const [hasChecked, setHasChecked] = useState(false);
-
-  const isLoading = status === "LOADING" || (!hasChecked && !isLoggedIn);
-
-  useEffect(() => {
-    if (status !== "LOADING") {
-      setHasChecked(true);
-    }
-  }, [status]);
+  const { isLoggedIn, status } = useAuth();
+  const [authState, setAuthState] = useState<
+    "loading" | "authenticated" | "unauthenticated"
+  >("loading");
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    if (hasChecked && !isLoggedIn) {
-      openModal({ type: "LOGIN" });
-    }
-  }, [hasChecked, isLoggedIn, openModal]);
+    // Still loading - keep waiting
+    if (status === "LOADING") return;
 
-  if (isLoading) {
+    // Logged in - immediately show content
+    if (isLoggedIn) {
+      setAuthState("authenticated");
+      return;
+    }
+
+    // Not logged in after status resolved - give Memberstack a moment
+    // to restore session from cookies before declaring unauthenticated
+    const timer = setTimeout(() => {
+      setAuthState((prev) => (prev === "loading" ? "unauthenticated" : prev));
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [status, isLoggedIn]);
+
+  // Handle redirect in useEffect (never in render)
+  useEffect(() => {
+    if (authState === "unauthenticated" && !redirectedRef.current) {
+      redirectedRef.current = true;
+      window.location.href = "/login";
+    }
+  }, [authState]);
+
+  if (authState === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -34,7 +49,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isLoggedIn) {
+  if (authState === "unauthenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

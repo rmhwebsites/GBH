@@ -1,5 +1,7 @@
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 import type { StockQuote, ChartDataPoint } from "@/types/database";
+
+const yahooFinance = new YahooFinance();
 
 // Cache for stock quotes (5 min during market hours, 1 hour after)
 const quoteCache = new Map<string, { data: StockQuote; timestamp: number }>();

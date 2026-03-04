@@ -30,7 +30,7 @@ export default function StockDetailPage() {
     { refreshInterval: 5 * 60 * 1000 }
   );
 
-  const holding = portfolio?.holdings.find((h) => h.ticker === ticker);
+  const holding = portfolio?.holdings?.find((h) => h.ticker === ticker);
 
   if (isLoading) {
     return (
