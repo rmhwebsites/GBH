@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getStockLogoUrl, getTickerInitials } from "@/lib/stock-logos";
 
 interface StockLogoProps {
   ticker: string;
@@ -9,13 +8,17 @@ interface StockLogoProps {
   className?: string;
 }
 
+/**
+ * Displays a company logo for a stock ticker.
+ * Uses Financial Modeling Prep's free image-stock API.
+ * Falls back to ticker initials if the logo fails to load.
+ */
 export function StockLogo({ ticker, size = 36, className = "" }: StockLogoProps) {
   const [hasError, setHasError] = useState(false);
-  const logoUrl = getStockLogoUrl(ticker);
-  const initials = getTickerInitials(ticker);
+  const logoUrl = `https://financialmodelingprep.com/image-stock/${ticker.toUpperCase()}.png`;
+  const initials = ticker.substring(0, 2).toUpperCase();
 
-  // If no logo URL found or image failed to load, show initials fallback
-  if (!logoUrl || hasError) {
+  if (hasError) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg bg-gold/10 text-xs font-bold text-gold ${className}`}
