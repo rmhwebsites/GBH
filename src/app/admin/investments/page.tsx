@@ -11,6 +11,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Trash2,
+  Wallet,
+  CalendarClock,
+  Activity,
+  Users,
+  TrendingUp,
 } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import type { MemberInvestment } from "@/types/database";
@@ -182,6 +187,30 @@ export default function AdminInvestmentsPage() {
     }
   });
 
+  // ── Calculate totals ─────────────────────────────────────────────
+  const totalInvestedAllTime = members.reduce(
+    (sum, m) => sum + m.amount_invested,
+    0
+  );
+
+  const totalUnitsAll = members.reduce((sum, m) => sum + m.units_owned, 0);
+
+  // Total invested in last 12 months
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  const totalInvestedLast12 = members
+    .filter((m) => new Date(m.investment_date) >= twelveMonthsAgo)
+    .reduce((sum, m) => sum + m.amount_invested, 0);
+
+  // Average NAV at entry (weighted average = total invested / total units)
+  const avgNavAtEntry =
+    totalUnitsAll > 0 ? totalInvestedAllTime / totalUnitsAll : 0;
+
+  // Current total value based on NAV
+  const totalCurrentValue = totalUnitsAll * navPerUnit;
+  const totalGainLoss = totalCurrentValue - totalInvestedAllTime;
+  const totalGainLossIsPositive = totalGainLoss >= 0;
+
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -219,6 +248,100 @@ export default function AdminInvestmentsPage() {
           </button>
         </div>
       </div>
+
+      {/* Summary Totals */}
+      {members.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+                <Wallet className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Total Invested</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {formatCurrency(totalInvestedAllTime)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy/30 sm:h-10 sm:w-10">
+                <CalendarClock className="h-4 w-4 text-gold-light sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Last 12 Months</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {formatCurrency(totalInvestedLast12)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+                <Activity className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Avg Entry NAV</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {formatCurrency(avgNavAtEntry)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy/30 sm:h-10 sm:w-10">
+                <Users className="h-4 w-4 text-gold-light sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Members</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {memberSummaries.size}
+                </p>
+                <p className="text-xs text-muted">
+                  {members.length} record{members.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
+                  totalGainLossIsPositive ? "bg-gain/10" : "bg-loss/10"
+                }`}
+              >
+                <TrendingUp
+                  className={`h-4 w-4 sm:h-5 sm:w-5 ${
+                    totalGainLossIsPositive ? "text-gain" : "text-loss"
+                  }`}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Total Value</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {formatCurrency(totalCurrentValue)}
+                </p>
+                <p
+                  className={`text-xs font-medium ${
+                    totalGainLossIsPositive ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {totalGainLossIsPositive ? "+" : ""}
+                  {formatCurrency(totalGainLoss)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Message */}
       {message && (
