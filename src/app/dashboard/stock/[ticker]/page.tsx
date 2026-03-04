@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { StockLogo } from "@/components/ui/StockLogo";
 import type { PortfolioSummary } from "@/types/database";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -57,9 +58,7 @@ export default function StockDetailPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold/10 text-sm font-bold text-gold">
-                {ticker.substring(0, 2)}
-              </div>
+              <StockLogo ticker={ticker} size={48} className="rounded-xl" />
               <div>
                 <h1 className="text-2xl font-semibold text-foreground">
                   {ticker}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { StockLogo } from "@/components/ui/StockLogo";
 import type { HoldingWithQuote } from "@/types/database";
 import {
   formatCurrency,
@@ -61,9 +62,7 @@ export function HoldingsTable({ holdings }: Props) {
                       className="group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold/10 text-xs font-bold text-gold">
-                          {holding.ticker.substring(0, 2)}
-                        </div>
+                        <StockLogo ticker={holding.ticker} size={36} />
                         <div>
                           <p className="font-medium text-foreground group-hover:text-gold transition-colors">
                             {holding.ticker}
