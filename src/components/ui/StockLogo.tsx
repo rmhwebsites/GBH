@@ -31,7 +31,7 @@ export function StockLogo({ ticker, size = 36, className = "" }: StockLogoProps)
 
   return (
     <div
-      className={`flex items-center justify-center overflow-hidden rounded-lg bg-white ${className}`}
+      className={`flex items-center justify-center overflow-hidden rounded-lg bg-transparent ${className}`}
       style={{ width: size, height: size }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

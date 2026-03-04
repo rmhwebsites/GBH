@@ -12,12 +12,14 @@ import {
   Shield,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
 
 const memberLinks = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/my-investment", label: "My Investment", icon: Wallet },
   { href: "/dashboard/history", label: "Trade History", icon: History },
 ];

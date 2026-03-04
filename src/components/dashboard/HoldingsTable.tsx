@@ -54,20 +54,20 @@ export function HoldingsTable({ holdings }: Props) {
               return (
                 <tr
                   key={holding.id}
-                  className="border-b border-card-border/50 transition-colors hover:bg-card-glass"
+                  className="group border-b border-card-border/50 transition-colors hover:bg-card-glass"
                 >
                   <td className="px-6 py-4">
                     <Link
                       href={`/dashboard/stock/${holding.ticker}`}
-                      className="group"
+                      className="block"
                     >
                       <div className="flex items-center gap-3">
                         <StockLogo ticker={holding.ticker} size={36} />
                         <div>
-                          <p className="font-medium text-foreground group-hover:text-gold transition-colors">
+                          <p className="font-medium text-foreground transition-colors group-hover:text-gold">
                             {holding.ticker}
                           </p>
-                          <p className="max-w-[140px] truncate text-xs text-muted">
+                          <p className="max-w-[140px] truncate text-xs text-muted transition-colors group-hover:text-foreground/70">
                             {holding.company_name}
                           </p>
                         </div>

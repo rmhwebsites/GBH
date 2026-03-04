@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { PortfolioSummary } from "@/components/dashboard/PortfolioSummary";
 import { HoldingsTable } from "@/components/dashboard/HoldingsTable";
 import { AllocationChart } from "@/components/charts/AllocationChart";
+import { SectorChart } from "@/components/charts/SectorChart";
 import { Loader2, RefreshCw } from "lucide-react";
 import type { PortfolioSummary as PortfolioSummaryType } from "@/types/database";
 
@@ -66,9 +67,10 @@ export default function DashboardPage() {
           <HoldingsTable holdings={portfolio?.holdings || []} />
         </div>
 
-        {/* Allocation Chart - 1/3 width */}
-        <div>
+        {/* Charts - 1/3 width */}
+        <div className="space-y-6">
           <AllocationChart holdings={portfolio?.holdings || []} />
+          <SectorChart holdings={portfolio?.holdings || []} />
         </div>
       </div>
     </div>
