@@ -4,7 +4,7 @@
 
 A live investment dashboard for GBH Capital's pooled investment fund. Members can view real-time portfolio data, their personal investment value, and trade history. Admins can manage holdings, record trades, and add members.
 
-**Live URL**: `dashboard.gbhinvestments.com` (after deployment)
+**Live URL**: `dashboard.gbhinvestments.com`
 
 ---
 
@@ -18,6 +18,7 @@ A live investment dashboard for GBH Capital's pooled investment fund. Members ca
 | Database | Supabase (PostgreSQL) | Free tier |
 | Stock Data | yahoo-finance2 (npm) | Free |
 | Charts | Lightweight Charts v5 (TradingView OSS) | Free |
+| Backup | Google Sheets API + googleapis | Free |
 | Hosting | Vercel | Free tier |
 
 ---
@@ -27,12 +28,33 @@ A live investment dashboard for GBH Capital's pooled investment fund. Members ca
 1. Go to [supabase.com](https://supabase.com) and sign in to your account
 2. Create a new project (or use your existing one)
 3. Go to **SQL Editor** in the left sidebar
-4. Copy the contents of `supabase/migration.sql` and run it — this creates all 4 tables:
+4. Copy the contents of `supabase/migration.sql` and run it — this creates the core tables:
    - `portfolio_holdings` - Stocks the fund owns
    - `member_investments` - Each member's investment records
    - `trade_history` - Buy/sell transaction log
    - `fund_metadata` - Fund-level settings (total units, inception date)
-5. Go to **Settings > API** to find your credentials:
+5. **Create the NAV History table** — run this SQL:
+
+```sql
+CREATE TABLE IF NOT EXISTS nav_history (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  snapshot_date date NOT NULL UNIQUE,
+  nav_per_unit decimal(15,6) NOT NULL,
+  total_value decimal(15,2) NOT NULL,
+  total_units decimal(15,6) NOT NULL,
+  total_cost decimal(15,2) NOT NULL,
+  total_gain_loss decimal(15,2) NOT NULL,
+  total_gain_loss_percent decimal(10,4) NOT NULL,
+  num_holdings integer NOT NULL DEFAULT 0,
+  cash_balance decimal(15,2) NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Index for efficient date queries
+CREATE INDEX IF NOT EXISTS idx_nav_history_date ON nav_history(snapshot_date);
+```
+
+6. Go to **Settings > API** to find your credentials:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon (public) key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`
@@ -45,7 +67,55 @@ A live investment dashboard for GBH Capital's pooled investment fund. Members ca
 4. Note your admin member ID (visible in the Members section when you click on a member)
    → `ADMIN_MEMBER_IDS`
 
-## Step 3: Configure Environment Variables
+## Step 3: Set Up Google Sheets Backup
+
+The dashboard backs up all data to Google Sheets every night at 11 PM EST, including a running NAV history log.
+
+### Create a Google Cloud Service Account
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or use existing)
+3. Enable the **Google Sheets API**:
+   - Go to **APIs & Services > Library**
+   - Search for "Google Sheets API"
+   - Click **Enable**
+4. Create a service account:
+   - Go to **APIs & Services > Credentials**
+   - Click **Create Credentials > Service Account**
+   - Name it something like `gbh-backup`
+   - Click **Create and Continue** (skip optional steps)
+   - Click **Done**
+5. Create a key for the service account:
+   - Click on the service account you just created
+   - Go to the **Keys** tab
+   - Click **Add Key > Create new key > JSON**
+   - Save the downloaded JSON file securely
+6. From the JSON file, note:
+   - `client_email` → `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+   - `private_key` → `GOOGLE_PRIVATE_KEY`
+
+### Create and Share the Google Sheet
+
+1. Create a new Google Sheet in your Google Drive
+2. Name it "GBH Investments Backup" (or whatever you prefer)
+3. Copy the spreadsheet ID from the URL:
+   - URL format: `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`
+   - → `GOOGLE_SHEET_ID`
+4. **Share the sheet** with the service account email (the `client_email` from the JSON):
+   - Click **Share** in the top right
+   - Paste the service account email
+   - Give it **Editor** access
+   - Click **Send**
+
+### Generate a Cron Secret
+
+Generate a random secret for authorizing the cron job:
+```bash
+openssl rand -hex 32
+```
+→ `CRON_SECRET`
+
+## Step 4: Configure Environment Variables
 
 Edit the `.env.local` file in the project root:
 
@@ -60,9 +130,17 @@ NEXT_PUBLIC_MEMBERSTACK_PUBLIC_KEY=pk_your_key_here
 
 # Admin member IDs (comma-separated Memberstack member IDs)
 ADMIN_MEMBER_IDS=mem_your_admin_id_here
+
+# Google Sheets Backup
+GOOGLE_SERVICE_ACCOUNT_EMAIL=gbh-backup@your-project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEET_ID=your_spreadsheet_id_here
+CRON_SECRET=your_random_secret_here
 ```
 
-## Step 4: Run Locally
+**Important**: When adding `GOOGLE_PRIVATE_KEY` to Vercel, paste the entire key including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`. Vercel handles the `\n` characters automatically.
+
+## Step 5: Run Locally
 
 ```bash
 cd gbh-dashboard
@@ -71,7 +149,13 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
-## Step 5: Deploy to Vercel
+### Test the Backup Locally
+
+```bash
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/admin/backup
+```
+
+## Step 6: Deploy to Vercel
 
 1. Push the project to a GitHub repository
 2. Go to [vercel.com](https://vercel.com) and import the repository
@@ -80,6 +164,16 @@ Open [http://localhost:3000](http://localhost:3000)
 5. In your domain registrar, add a CNAME record:
    - `dashboard.gbhinvestments.com` → `cname.vercel-dns.com`
 6. In Vercel project settings, add `dashboard.gbhinvestments.com` as a custom domain
+
+### Verify Cron Job
+
+After deploying, the `vercel.json` cron configuration will automatically schedule:
+- **Daily backup at 11 PM EST** (4 AM UTC) → `GET /api/admin/backup`
+
+To verify it's working:
+- Go to Vercel dashboard → your project → **Cron Jobs** tab
+- You should see the `/api/admin/backup` cron listed
+- Check the Google Sheet after the first run for data
 
 ---
 
@@ -91,8 +185,9 @@ Open [http://localhost:3000](http://localhost:3000)
 | `/login` | Memberstack login page |
 | `/dashboard` | Portfolio overview - total value, holdings table, allocation chart |
 | `/dashboard/stock/[ticker]` | Stock detail - branded chart, key stats, fund position |
-| `/dashboard/my-investment` | Personal investment - current value, gain/loss, history |
+| `/dashboard/my-investment` | Personal investment - current value, gain/loss, NAV at entry, history |
 | `/dashboard/history` | Trade history - filterable buy/sell records |
+| `/dashboard/analytics` | Fund performance charts |
 
 ### Admin Pages (requires admin member ID)
 | Route | Description |
@@ -101,6 +196,19 @@ Open [http://localhost:3000](http://localhost:3000)
 | `/admin/holdings` | Add/edit/remove stock positions |
 | `/admin/trades` | Record buy/sell trades (auto-updates holdings) |
 | `/admin/members` | Add members, set investment amounts |
+| `/admin/investments` | Investment tracking with NAV-based units |
+
+### API Endpoints
+| Route | Description |
+|-------|-------------|
+| `/api/stocks/quotes` | Live stock quotes (cached 5min/1hr) |
+| `/api/stocks/history/[ticker]` | Historical chart data |
+| `/api/portfolio` | Full portfolio summary |
+| `/api/portfolio/nav` | Current NAV per unit |
+| `/api/portfolio/nav-history` | Daily NAV history (query: `?days=90` or `?from=&to=`) |
+| `/api/portfolio/performance` | Performance data for charts |
+| `/api/member/[id]` | Member investment data |
+| `/api/admin/backup` | Daily backup (cron-triggered) |
 
 ---
 
@@ -120,7 +228,7 @@ Open [http://localhost:3000](http://localhost:3000)
 5. Click "Record Trade" — holdings are auto-updated
 
 ### Adding a New Member Investment
-1. Go to `/admin/members`
+1. Go to `/admin/members` or `/admin/investments`
 2. Click "Add Investment"
 3. Enter their Memberstack ID, name, email, and investment amount
 4. Units are auto-calculated based on current NAV
@@ -137,7 +245,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ## How the Fund Math Works
 
 ```
-Total AUM = SUM(shares_held x current_stock_price) for all active holdings
+Total AUM = SUM(shares_held x current_stock_price) + cash_balance
 NAV per Unit = Total AUM / Total Units Outstanding
 Member Value = member.units_owned x NAV per Unit
 Member Gain/Loss = Member Value - member.amount_invested
@@ -147,6 +255,11 @@ When a new member invests:
 - Units Granted = Investment Amount / Current NAV per Unit
 - Total Units Outstanding increases by units granted
 
+### Investment Rounds
+- **Round 1 (May 2025)**: NAV = $1.00 (initial), units = dollars invested
+- **Round 2 (Sep 2025)**: NAV = $1.1356 (portfolio had grown), units = dollars / $1.1356
+- Future rounds: NAV calculated live at time of investment
+
 ---
 
 ## Data Refresh
@@ -155,6 +268,31 @@ When a new member invests:
 - After hours, quotes are cached for **1 hour**
 - Client-side SWR also refreshes every 5 minutes
 - Manual refresh button available on dashboard
+- NAV snapshot taken daily at **11 PM EST** (includes after-hours prices)
+
+---
+
+## Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `portfolio_holdings` | Stock positions (ticker, shares, cost basis, active flag) |
+| `member_investments` | Investment records (member ID, amount, units, date) |
+| `trade_history` | Buy/sell transaction log |
+| `fund_metadata` | Total units outstanding, fund inception date |
+| `nav_history` | Daily NAV snapshots (date, NAV, value, units, gain/loss) |
+
+---
+
+## Google Sheets Backup Tabs
+
+| Sheet | Behavior | Contents |
+|-------|----------|----------|
+| Member Investments | Overwrite daily | All member records with NAV at entry |
+| Portfolio Holdings | Overwrite daily | All positions with live prices and market values |
+| Trade History | Overwrite daily | All buy/sell trades |
+| Fund Summary | Overwrite daily | Live NAV, AUM, portfolio stats |
+| NAV History | **Append only** | Running daily log — never overwritten |
 
 ---
 
@@ -172,20 +310,24 @@ src/
 │   │   ├── page.tsx            # Portfolio overview
 │   │   ├── stock/[ticker]/     # Stock detail + chart
 │   │   ├── my-investment/      # Member's personal view
-│   │   └── history/            # Trade history
+│   │   ├── history/            # Trade history
+│   │   └── analytics/          # Fund performance
 │   ├── admin/
 │   │   ├── layout.tsx          # Admin guard
 │   │   ├── page.tsx            # Admin dashboard
 │   │   ├── holdings/           # Manage holdings
 │   │   ├── trades/             # Record trades
-│   │   └── members/            # Manage members
+│   │   ├── members/            # Manage members
+│   │   └── investments/        # Investment tracking
 │   └── api/
 │       ├── stocks/quotes/      # Live stock quotes
 │       ├── stocks/history/     # Historical chart data
 │       ├── portfolio/          # Portfolio summary
 │       ├── portfolio/nav/      # NAV calculation
+│       ├── portfolio/nav-history/ # Daily NAV history
+│       ├── portfolio/performance/ # Performance data
 │       ├── member/[id]/        # Member data
-│       └── admin/              # Admin CRUD routes
+│       └── admin/              # CRUD, backup, batch operations
 ├── components/
 │   ├── auth/AuthGuard.tsx      # Auth wrapper
 │   ├── ui/Sidebar.tsx          # Navigation sidebar
@@ -236,6 +378,12 @@ Fonts: **Raleway** (headings), **Roboto** (body)
 ### Member can't see their investment
 - Ensure the member's Memberstack ID matches exactly in the database
 - Add an investment record via `/admin/members`
+
+### Backup not running
+- Verify `CRON_SECRET` is set in Vercel environment variables
+- Check the Vercel Cron Jobs tab for the schedule
+- Test manually: `curl -H "Authorization: Bearer YOUR_SECRET" https://dashboard.gbhinvestments.com/api/admin/backup`
+- Ensure the Google Sheet is shared with the service account email as Editor
 
 ### Build warnings about CSS @import
 - This is a non-breaking warning about font import order in CSS

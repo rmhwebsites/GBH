@@ -25,6 +25,7 @@ export default function AdminTradesPage() {
     company_name: "",
     shares: "",
     price_per_share: "",
+    trade_date: new Date().toISOString().split("T")[0],
     notes: "",
   });
   const [saving, setSaving] = useState(false);
@@ -59,6 +60,7 @@ export default function AdminTradesPage() {
             form.ticker,
           shares: parseFloat(form.shares),
           price_per_share: parseFloat(form.price_per_share),
+          trade_date: form.trade_date,
           notes: form.notes || null,
         }),
       });
@@ -75,6 +77,7 @@ export default function AdminTradesPage() {
         company_name: "",
         shares: "",
         price_per_share: "",
+        trade_date: new Date().toISOString().split("T")[0],
         notes: "",
       });
       mutate();
@@ -229,6 +232,19 @@ export default function AdminTradesPage() {
               className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-gold focus:outline-none"
             />
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted">
+              Trade Date
+            </label>
+            <input
+              type="date"
+              value={form.trade_date}
+              onChange={(e) =>
+                setForm({ ...form, trade_date: e.target.value })
+              }
+              className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+            />
+          </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs text-muted">
               Notes (optional)
@@ -310,6 +326,7 @@ export default function AdminTradesPage() {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
+                        timeZone: "UTC",
                       })}
                     </td>
                     <td className="px-4 py-3">

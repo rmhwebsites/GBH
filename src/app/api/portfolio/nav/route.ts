@@ -47,9 +47,18 @@ export async function GET() {
       });
     }
 
-    const tickers = holdings.map((h) => h.ticker);
-    const quotes = await getQuotes(tickers);
-    const summary = calculatePortfolioSummary(holdings, quotes);
+    // Separate cash from stock holdings
+    const cashHolding = holdings.find((h) => h.ticker === "CASH");
+    const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
+    const cashBalance = cashHolding?.shares || 0;
+
+    const tickers = stockHoldings.map((h) => h.ticker);
+    const quotes = tickers.length > 0 ? await getQuotes(tickers) : [];
+    const summary = calculatePortfolioSummary(
+      stockHoldings,
+      quotes,
+      cashBalance
+    );
     const nav = calculateNAV(
       summary.totalValue,
       metadata.total_units_outstanding

@@ -54,12 +54,15 @@ export function SectorChart({ holdings }: Props) {
             <Tooltip
               contentStyle={{
                 backgroundColor: "#0a1628",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "8px",
-                color: "#f0f0f0",
                 fontSize: "13px",
                 maxWidth: "280px",
+                padding: "8px 12px",
               }}
+              itemStyle={{ color: "#f0f0f0" }}
+              labelStyle={{ color: "#f0f0f0" }}
+              cursor={{ fill: "rgba(206, 156, 92, 0.08)" }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={((value: any, _name: any, props: any) => {
                 const entry = props.payload;

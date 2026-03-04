@@ -87,6 +87,9 @@ export function calculateMemberData(
   const totalGainLossPercent =
     totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
 
+  // Weighted average NAV at entry = total invested / total units
+  const avgEntryNav = totalUnits > 0 ? totalInvested / totalUnits : 0;
+
   return {
     investments,
     totalInvested,
@@ -94,6 +97,8 @@ export function calculateMemberData(
     currentValue,
     totalGainLoss,
     totalGainLossPercent,
+    navPerUnit,
+    avgEntryNav,
   };
 }
 

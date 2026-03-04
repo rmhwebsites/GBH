@@ -105,6 +105,22 @@ export interface MemberDashboardData {
   currentValue: number;
   totalGainLoss: number;
   totalGainLossPercent: number;
+  navPerUnit: number;
+  avgEntryNav: number;
+}
+
+export interface NavSnapshot {
+  id: string;
+  snapshot_date: string;
+  nav_per_unit: number;
+  total_value: number;
+  total_units: number;
+  total_cost: number;
+  total_gain_loss: number;
+  total_gain_loss_percent: number;
+  num_holdings: number;
+  cash_balance: number;
+  created_at: string;
 }
 
 export interface ChartDataPoint {

@@ -29,16 +29,22 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient();
 
     // Record the trade
+    const tradeInsert: Record<string, unknown> = {
+      ticker: body.ticker.toUpperCase(),
+      action: body.action,
+      shares: body.shares,
+      price_per_share: body.price_per_share,
+      total_amount: body.shares * body.price_per_share,
+      notes: body.notes || null,
+    };
+    // Allow admin to set a custom trade date
+    if (body.trade_date) {
+      tradeInsert.trade_date = body.trade_date;
+    }
+
     const { data: trade, error: tradeError } = await supabase
       .from("trade_history")
-      .insert({
-        ticker: body.ticker.toUpperCase(),
-        action: body.action,
-        shares: body.shares,
-        price_per_share: body.price_per_share,
-        total_amount: body.shares * body.price_per_share,
-        notes: body.notes || null,
-      })
+      .insert(tradeInsert)
       .select()
       .single();
 

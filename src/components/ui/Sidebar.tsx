@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
@@ -29,6 +30,7 @@ const adminLinks = [
   { href: "/admin/holdings", label: "Holdings", icon: TrendingUp },
   { href: "/admin/trades", label: "Record Trade", icon: History },
   { href: "/admin/members", label: "Members", icon: Settings },
+  { href: "/admin/investments", label: "Investments", icon: DollarSign },
 ];
 
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {

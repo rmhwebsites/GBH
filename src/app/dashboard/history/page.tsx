@@ -125,7 +125,7 @@ export default function TradeHistoryPage() {
                       <td className="px-6 py-4 text-sm text-foreground">
                         {new Date(trade.trade_date).toLocaleDateString(
                           "en-US",
-                          { year: "numeric", month: "short", day: "numeric" }
+                          { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }
                         )}
                       </td>
                       <td className="px-4 py-4">

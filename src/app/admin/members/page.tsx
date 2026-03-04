@@ -436,7 +436,7 @@ export default function AdminMembersPage() {
                       <td className="px-4 py-3 text-right text-xs text-muted">
                         {new Date(m.investment_date).toLocaleDateString(
                           "en-US",
-                          { month: "short", day: "numeric", year: "numeric" }
+                          { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">

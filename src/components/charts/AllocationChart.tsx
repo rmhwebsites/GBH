@@ -245,11 +245,14 @@ export function AllocationChart({ holdings, cashBalance = 0 }: Props) {
             <Tooltip
               contentStyle={{
                 backgroundColor: "#0a1628",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "8px",
-                color: "#f0f0f0",
                 fontSize: "13px",
+                padding: "8px 12px",
               }}
+              itemStyle={{ color: "#f0f0f0" }}
+              labelStyle={{ color: "#f0f0f0" }}
+              cursor={{ fill: "rgba(206, 156, 92, 0.08)" }}
               formatter={(value) => [formatCurrency(value as number), "Value"]}
             />
           </PieChart>

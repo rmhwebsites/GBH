@@ -37,7 +37,7 @@ export function StockChart({ ticker }: Props) {
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.55)",
+        textColor: "rgba(255, 255, 255, 0.85)",
         fontFamily: "'Roboto', sans-serif",
         fontSize: isMobile ? 10 : 12,
       },
@@ -46,8 +46,14 @@ export function StockChart({ ticker }: Props) {
         horzLines: { color: "rgba(255, 255, 255, 0.05)" },
       },
       crosshair: {
-        vertLine: { color: "rgba(206, 156, 92, 0.3)" },
-        horzLine: { color: "rgba(206, 156, 92, 0.3)" },
+        vertLine: {
+          color: "rgba(206, 156, 92, 0.4)",
+          labelBackgroundColor: "#CE9C5C",
+        },
+        horzLine: {
+          color: "rgba(206, 156, 92, 0.4)",
+          labelBackgroundColor: "#CE9C5C",
+        },
       },
       rightPriceScale: {
         borderColor: "rgba(255, 255, 255, 0.1)",
