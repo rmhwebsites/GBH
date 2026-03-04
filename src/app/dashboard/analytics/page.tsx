@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
                     : "text-loss",
               },
               {
-                label: "Cash Balance",
+                label: "Cash & Equivalents",
                 value: formatCurrency(portfolio?.cashBalance || 0),
               },
               {

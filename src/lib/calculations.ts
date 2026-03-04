@@ -39,24 +39,27 @@ export function calculatePortfolioSummary(
       };
     });
 
-  // Add cash to total value (cash has no gain/loss)
-  totalValue += cashBalance;
-  totalCost += cashBalance;
+  // Gain/loss is stocks only (like Fidelity/Schwab)
+  const totalGainLoss = totalValue - totalCost;
+  const totalGainLossPercent =
+    totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
 
-  // Calculate weights (including cash in denominator)
+  // Total AUM includes cash
+  const totalAUM = totalValue + cashBalance;
+
+  // Calculate weights based on total AUM (including cash in denominator)
   enrichedHoldings.forEach((h) => {
-    h.weight = totalValue > 0 ? (h.currentValue / totalValue) * 100 : 0;
+    h.weight = totalAUM > 0 ? (h.currentValue / totalAUM) * 100 : 0;
   });
 
   // Sort by weight descending
   enrichedHoldings.sort((a, b) => b.weight - a.weight);
 
   return {
-    totalValue,
+    totalValue: totalAUM,
     totalCost,
-    totalGainLoss: totalValue - totalCost,
-    totalGainLossPercent:
-      totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+    totalGainLoss,
+    totalGainLossPercent,
     holdings: enrichedHoldings,
     cashBalance,
   };

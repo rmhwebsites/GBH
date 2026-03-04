@@ -94,7 +94,7 @@ export function PortfolioSummary({
           <div className="rounded-lg bg-gold/10 p-2">
             <Banknote className="h-4 w-4 text-gold" />
           </div>
-          <span className="text-xs text-muted sm:text-sm">Cash</span>
+          <span className="text-xs text-muted sm:text-sm">Cash & Equivalents</span>
         </div>
         <p className="text-lg font-semibold text-foreground sm:text-2xl">
           {formatCurrency(cashBalance)}
