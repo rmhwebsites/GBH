@@ -84,7 +84,6 @@ export default function AnalyticsPage() {
     .slice(0, 5)
     .reduce((sum, h) => sum + h.weight, 0);
   const avgPosition = holdings.length > 0 ? 100 / holdings.length : 0;
-  const largestPosition = holdings.length > 0 ? holdings[0].weight : 0;
 
   return (
     <div className="space-y-6">
@@ -99,16 +98,16 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Performance Overview Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
-              <BarChart3 className="h-5 w-5 text-gold" />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="glass-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+              <BarChart3 className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted">Fund Return</p>
               <p
-                className={`text-xl font-semibold ${
+                className={`text-lg font-semibold sm:text-xl ${
                   portfolioReturn >= 0 ? "text-gain" : "text-loss"
                 }`}
               >
@@ -119,15 +118,15 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#5CA0CE]/10">
-              <Activity className="h-5 w-5 text-[#5CA0CE]" />
+        <div className="glass-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5CA0CE]/10 sm:h-10 sm:w-10">
+              <Activity className="h-4 w-4 text-[#5CA0CE] sm:h-5 sm:w-5" />
             </div>
-            <div>
-              <p className="text-xs text-muted">S&amp;P 500 Return</p>
+            <div className="min-w-0">
+              <p className="text-xs text-muted">S&amp;P 500</p>
               <p
-                className={`text-xl font-semibold ${
+                className={`text-lg font-semibold sm:text-xl ${
                   sp500Return >= 0 ? "text-gain" : "text-loss"
                 }`}
               >
@@ -138,21 +137,21 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
+        <div className="glass-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
                 alpha >= 0 ? "bg-gain/10" : "bg-loss/10"
               }`}
             >
               <Target
-                className={`h-5 w-5 ${alpha >= 0 ? "text-gain" : "text-loss"}`}
+                className={`h-4 w-4 sm:h-5 sm:w-5 ${alpha >= 0 ? "text-gain" : "text-loss"}`}
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted">Alpha vs S&amp;P</p>
               <p
-                className={`text-xl font-semibold ${
+                className={`text-lg font-semibold sm:text-xl ${
                   alpha >= 0 ? "text-gain" : "text-loss"
                 }`}
               >
@@ -163,14 +162,14 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
-              <Zap className="h-5 w-5 text-gold" />
+        <div className="glass-card p-4 sm:p-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+              <Zap className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted">Total AUM</p>
-              <p className="text-xl font-semibold text-foreground">
+              <p className="text-lg font-semibold text-foreground sm:text-xl">
                 {formatLargeNumber(portfolio?.totalValue || 0)}
               </p>
             </div>
@@ -179,8 +178,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Performance Comparison Chart */}
-      <div className="glass-card p-6">
-        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="glass-card p-4 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
               Performance vs S&amp;P 500
@@ -189,12 +188,12 @@ export default function AnalyticsPage() {
               Indexed to 100 at start of period
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                   period === p.value
                     ? "bg-gold/20 text-gold"
                     : "text-muted hover:bg-card-glass hover:text-foreground"
@@ -238,11 +237,11 @@ export default function AnalyticsPage() {
         <SectorChart holdings={holdings} />
 
         {/* Portfolio Metrics */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-4 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Portfolio Metrics
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {[
               {
                 label: "Number of Holdings",
@@ -263,6 +262,10 @@ export default function AnalyticsPage() {
                   (portfolio?.totalGainLoss || 0) >= 0
                     ? "text-gain"
                     : "text-loss",
+              },
+              {
+                label: "Cash Balance",
+                value: formatCurrency(portfolio?.cashBalance || 0),
               },
               {
                 label: "Largest Position",
@@ -287,9 +290,9 @@ export default function AnalyticsPage() {
                 key={label}
                 className="flex items-center justify-between border-b border-card-border/30 py-2"
               >
-                <span className="text-sm text-muted">{label}</span>
+                <span className="text-xs text-muted sm:text-sm">{label}</span>
                 <span
-                  className={`text-sm font-medium ${color || "text-foreground"}`}
+                  className={`text-xs font-medium sm:text-sm ${color || "text-foreground"}`}
                 >
                   {value}
                 </span>
@@ -302,20 +305,20 @@ export default function AnalyticsPage() {
       {/* Top & Bottom Performers */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Top Performers */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-gain" />
             <h2 className="text-lg font-semibold text-foreground">
               Top Performers
             </h2>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {topPerformers.map((h, i) => (
               <div
                 key={h.ticker}
-                className="flex items-center justify-between rounded-lg bg-card-glass/50 px-4 py-3"
+                className="flex items-center justify-between rounded-lg bg-card-glass/50 px-3 py-2.5 sm:px-4 sm:py-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="text-xs font-bold text-muted">
                     #{i + 1}
                   </span>
@@ -323,7 +326,7 @@ export default function AnalyticsPage() {
                     <p className="text-sm font-medium text-foreground">
                       {h.ticker}
                     </p>
-                    <p className="max-w-[120px] truncate text-xs text-muted">
+                    <p className="max-w-[100px] truncate text-xs text-muted sm:max-w-[120px]">
                       {h.company_name}
                     </p>
                   </div>
@@ -342,20 +345,20 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Bottom Performers */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-4 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <TrendingDown className="h-5 w-5 text-loss" />
             <h2 className="text-lg font-semibold text-foreground">
               Bottom Performers
             </h2>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {bottomPerformers.map((h, i) => (
               <div
                 key={h.ticker}
-                className="flex items-center justify-between rounded-lg bg-card-glass/50 px-4 py-3"
+                className="flex items-center justify-between rounded-lg bg-card-glass/50 px-3 py-2.5 sm:px-4 sm:py-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="text-xs font-bold text-muted">
                     #{holdings.length - i}
                   </span>
@@ -363,7 +366,7 @@ export default function AnalyticsPage() {
                     <p className="text-sm font-medium text-foreground">
                       {h.ticker}
                     </p>
-                    <p className="max-w-[120px] truncate text-xs text-muted">
+                    <p className="max-w-[100px] truncate text-xs text-muted sm:max-w-[120px]">
                       {h.company_name}
                     </p>
                   </div>
@@ -392,7 +395,7 @@ export default function AnalyticsPage() {
 
       {/* Sector Breakdown Table */}
       <div className="glass-card overflow-hidden">
-        <div className="border-b border-card-border px-6 py-4">
+        <div className="border-b border-card-border px-4 py-4 sm:px-6">
           <h2 className="text-lg font-semibold text-foreground">
             Sector Breakdown
           </h2>
@@ -401,13 +404,13 @@ export default function AnalyticsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-card-border text-left text-xs uppercase tracking-wider text-muted">
-                <th className="px-6 py-3 font-medium">Sector</th>
-                <th className="px-4 py-3 font-medium text-right">Weight</th>
-                <th className="px-4 py-3 font-medium text-right">Value</th>
-                <th className="hidden px-4 py-3 font-medium text-right sm:table-cell">
+                <th className="px-4 py-3 font-medium sm:px-6">Sector</th>
+                <th className="px-3 py-3 font-medium text-right sm:px-4">Weight</th>
+                <th className="hidden px-3 py-3 font-medium text-right sm:table-cell sm:px-4">Value</th>
+                <th className="hidden px-3 py-3 font-medium text-right md:table-cell sm:px-4">
                   # Holdings
                 </th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">
+                <th className="hidden px-3 py-3 font-medium lg:table-cell sm:px-4">
                   Tickers
                 </th>
               </tr>
@@ -418,23 +421,23 @@ export default function AnalyticsPage() {
                   key={sector.sector}
                   className="border-b border-card-border/50 transition-colors hover:bg-card-glass"
                 >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                  <td className="px-4 py-3 sm:px-6 sm:py-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <div
-                        className="h-3 w-3 rounded-sm"
+                        className="h-3 w-3 shrink-0 rounded-sm"
                         style={{
                           backgroundColor:
                             SECTOR_COLORS[sector.sector as GICSSector] || "#666",
                         }}
                       />
-                      <span className="text-sm font-medium text-foreground">
+                      <span className="text-xs font-medium text-foreground sm:text-sm">
                         {sector.sector}
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-3 py-3 text-right sm:px-4 sm:py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-card-border">
+                      <div className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-card-border sm:block sm:w-16">
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -445,18 +448,18 @@ export default function AnalyticsPage() {
                           }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground">
+                      <span className="text-xs font-medium text-foreground sm:text-sm">
                         {sector.weight.toFixed(1)}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-right text-sm text-muted">
+                  <td className="hidden px-3 py-3 text-right text-xs text-muted sm:table-cell sm:px-4 sm:py-4 sm:text-sm">
                     {formatCurrency(sector.value)}
                   </td>
-                  <td className="hidden px-4 py-4 text-right text-sm text-muted sm:table-cell">
+                  <td className="hidden px-3 py-3 text-right text-xs text-muted md:table-cell sm:px-4 sm:py-4 sm:text-sm">
                     {sector.holdingsCount}
                   </td>
-                  <td className="hidden px-4 py-4 text-sm text-muted md:table-cell">
+                  <td className="hidden max-w-[250px] truncate px-3 py-3 text-xs text-muted lg:table-cell sm:px-4 sm:py-4 sm:text-sm">
                     {sector.tickers.join(", ")}
                   </td>
                 </tr>

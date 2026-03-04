@@ -27,8 +27,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ portfolio: [], sp500: [] });
     }
 
+    // Filter out CASH from performance calculations
+    const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
+
+    if (stockHoldings.length === 0) {
+      return NextResponse.json({ portfolio: [], sp500: [] });
+    }
+
     // Fetch historical data for all tickers + SPY (S&P 500 ETF)
-    const tickers = holdings.map((h) => h.ticker);
+    const tickers = stockHoldings.map((h) => h.ticker);
     const allTickers = [...tickers, "SPY"];
 
     const historicalPromises = allTickers.map((ticker) =>
@@ -66,12 +73,12 @@ export async function GET(request: Request) {
     // Calculate portfolio value for each date
     // Use share quantities from current holdings (simplified - assumes constant position)
     const holdingShares = new Map(
-      holdings.map((h) => [h.ticker, h.shares])
+      stockHoldings.map((h) => [h.ticker, h.shares])
     );
 
     // Get current quotes for reference
     const quotes = await getQuotes(tickers);
-    const totalCurrentValue = holdings.reduce((sum, h) => {
+    const totalCurrentValue = stockHoldings.reduce((sum, h) => {
       const quote = quotes.find((q) => q.ticker === h.ticker);
       return sum + (quote ? h.shares * quote.price : 0);
     }, 0);
@@ -91,7 +98,7 @@ export async function GET(request: Request) {
 
     // Calculate portfolio value at start
     let portfolioFirstValue = 0;
-    for (const h of holdings) {
+    for (const h of stockHoldings) {
       const price = tickerData.get(h.ticker)?.get(firstValidDate);
       if (price) {
         portfolioFirstValue += h.shares * price;
@@ -109,7 +116,7 @@ export async function GET(request: Request) {
       // Portfolio value
       let portfolioValue = 0;
       let allValid = true;
-      for (const h of holdings) {
+      for (const h of stockHoldings) {
         const price = tickerData.get(h.ticker)?.get(date);
         if (price) {
           portfolioValue += h.shares * price;
@@ -150,7 +157,7 @@ export async function GET(request: Request) {
         sp500Return: lastSPYVal - 100,
         alpha: lastPortfolioVal - lastSPYVal,
         totalValue: totalCurrentValue,
-        holdingsCount: holdings.length,
+        holdingsCount: stockHoldings.length,
       },
     });
   } catch (err) {

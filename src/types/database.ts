@@ -95,6 +95,7 @@ export interface PortfolioSummary {
   totalGainLoss: number;
   totalGainLossPercent: number;
   holdings: HoldingWithQuote[];
+  cashBalance: number;
 }
 
 export interface MemberDashboardData {

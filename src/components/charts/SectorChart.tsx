@@ -27,20 +27,20 @@ export function SectorChart({ holdings }: Props) {
   }));
 
   return (
-    <div className="glass-card p-6">
+    <div className="glass-card p-4 sm:p-6">
       <h2 className="mb-1 text-lg font-semibold text-foreground">
         Sector Allocation
       </h2>
       <p className="mb-4 text-xs text-muted">S&amp;P 500 GICS Classification</p>
-      <div className="h-64">
+      <div className="h-52 sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={60}
-              outerRadius={90}
+              innerRadius={50}
+              outerRadius={80}
               paddingAngle={2}
               dataKey="value"
             >
@@ -58,6 +58,7 @@ export function SectorChart({ holdings }: Props) {
                 borderRadius: "8px",
                 color: "#f0f0f0",
                 fontSize: "13px",
+                maxWidth: "280px",
               }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={((value: any, _name: any, props: any) => {
@@ -72,26 +73,23 @@ export function SectorChart({ holdings }: Props) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      {/* Legend */}
-      <div className="mt-4 space-y-2">
+      {/* Legend - compact with truncated tickers */}
+      <div className="mt-4 max-h-48 space-y-1.5 overflow-y-auto">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div key={item.name} className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <div
-                className="h-3 w-3 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
                   backgroundColor:
                     SECTOR_COLORS[item.name as GICSSector] || "#666",
                 }}
               />
-              <span className="text-xs text-muted">{item.name}</span>
+              <span className="truncate text-xs text-muted">{item.name}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted">{item.tickers}</span>
-              <span className="text-xs font-medium text-foreground">
-                {item.weight.toFixed(1)}%
-              </span>
-            </div>
+            <span className="shrink-0 text-xs font-medium text-foreground">
+              {item.weight.toFixed(1)}%
+            </span>
           </div>
         ))}
       </div>

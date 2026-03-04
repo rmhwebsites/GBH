@@ -9,7 +9,8 @@ import type {
 
 export function calculatePortfolioSummary(
   holdings: PortfolioHolding[],
-  quotes: StockQuote[]
+  quotes: StockQuote[],
+  cashBalance: number = 0
 ): PortfolioSummary {
   const quoteMap = new Map(quotes.map((q) => [q.ticker, q]));
 
@@ -17,7 +18,7 @@ export function calculatePortfolioSummary(
   let totalCost = 0;
 
   const enrichedHoldings: HoldingWithQuote[] = holdings
-    .filter((h) => h.is_active)
+    .filter((h) => h.is_active && h.ticker !== "CASH")
     .map((holding) => {
       const quote = quoteMap.get(holding.ticker);
       const currentValue = quote ? holding.shares * quote.price : 0;
@@ -38,7 +39,11 @@ export function calculatePortfolioSummary(
       };
     });
 
-  // Calculate weights
+  // Add cash to total value (cash has no gain/loss)
+  totalValue += cashBalance;
+  totalCost += cashBalance;
+
+  // Calculate weights (including cash in denominator)
   enrichedHoldings.forEach((h) => {
     h.weight = totalValue > 0 ? (h.currentValue / totalValue) * 100 : 0;
   });
@@ -53,6 +58,7 @@ export function calculatePortfolioSummary(
     totalGainLossPercent:
       totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
     holdings: enrichedHoldings,
+    cashBalance,
   };
 }
 

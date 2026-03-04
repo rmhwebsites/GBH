@@ -54,7 +54,7 @@ export function HoldingsTable({ holdings }: Props) {
               return (
                 <tr
                   key={holding.id}
-                  className="group border-b border-card-border/50 transition-colors hover:bg-card-glass"
+                  className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-white/[0.06]"
                 >
                   <td className="px-6 py-4">
                     <Link
@@ -64,17 +64,17 @@ export function HoldingsTable({ holdings }: Props) {
                       <div className="flex items-center gap-3">
                         <StockLogo ticker={holding.ticker} size={36} />
                         <div>
-                          <p className="font-medium text-foreground transition-colors group-hover:text-gold">
+                          <p className="font-medium text-foreground transition-colors group-hover:text-white">
                             {holding.ticker}
                           </p>
-                          <p className="max-w-[140px] truncate text-xs text-muted transition-colors group-hover:text-foreground/70">
+                          <p className="max-w-[140px] truncate text-xs text-muted transition-colors group-hover:text-white/60">
                             {holding.company_name}
                           </p>
                         </div>
                       </div>
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-right font-medium text-foreground">
+                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
                     {formatCurrency(holding.quote.price)}
                   </td>
                   <td className="px-4 py-4 text-right">
@@ -93,10 +93,10 @@ export function HoldingsTable({ holdings }: Props) {
                       </span>
                     </div>
                   </td>
-                  <td className="hidden px-4 py-4 text-right text-sm text-muted md:table-cell">
+                  <td className="hidden px-4 py-4 text-right text-sm text-muted transition-colors group-hover:text-white/60 md:table-cell">
                     {formatNumber(holding.shares)}
                   </td>
-                  <td className="px-4 py-4 text-right font-medium text-foreground">
+                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
                     {formatCurrency(holding.currentValue)}
                   </td>
                   <td className="hidden px-4 py-4 text-right lg:table-cell">

@@ -57,6 +57,7 @@ export default function DashboardPage() {
           totalGainLoss={portfolio.totalGainLoss}
           totalGainLossPercent={portfolio.totalGainLossPercent}
           holdingsCount={portfolio.holdings?.length || 0}
+          cashBalance={portfolio.cashBalance || 0}
         />
       )}
 
@@ -69,7 +70,7 @@ export default function DashboardPage() {
 
         {/* Charts - 1/3 width */}
         <div className="space-y-6">
-          <AllocationChart holdings={portfolio?.holdings || []} />
+          <AllocationChart holdings={portfolio?.holdings || []} cashBalance={portfolio?.cashBalance || 0} />
           <SectorChart holdings={portfolio?.holdings || []} />
         </div>
       </div>

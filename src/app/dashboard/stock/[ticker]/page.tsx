@@ -55,33 +55,31 @@ export default function StockDetailPage() {
           Back to Portfolio
         </Link>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <StockLogo ticker={ticker} size={48} className="rounded-xl" />
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">
-                  {ticker}
-                </h1>
-                <p className="text-sm text-muted">
-                  {quote?.name || holding?.company_name || ticker}
-                </p>
-              </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3">
+            <StockLogo ticker={ticker} size={48} className="rounded-xl" />
+            <div>
+              <h1 className="text-xl font-semibold text-foreground sm:text-2xl">
+                {ticker}
+              </h1>
+              <p className="max-w-[200px] truncate text-sm text-muted sm:max-w-none">
+                {quote?.name || holding?.company_name || ticker}
+              </p>
             </div>
           </div>
           {quote && (
-            <div className="text-right">
-              <p className="text-3xl font-semibold text-foreground">
+            <div className="text-left sm:text-right">
+              <p className="text-2xl font-semibold text-foreground sm:text-3xl">
                 {formatCurrency(quote.price)}
               </p>
-              <div className="mt-1 flex items-center justify-end gap-1">
+              <div className="mt-1 flex items-center gap-1 sm:justify-end">
                 {quote.changePercent >= 0 ? (
                   <TrendingUp className="h-4 w-4 text-gain" />
                 ) : (
                   <TrendingDown className="h-4 w-4 text-loss" />
                 )}
                 <span
-                  className={`font-medium ${
+                  className={`text-sm font-medium sm:text-base ${
                     quote.changePercent >= 0 ? "text-gain" : "text-loss"
                   }`}
                 >
@@ -101,11 +99,11 @@ export default function StockDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Key Stats */}
         {quote && (
-          <div className="glass-card p-6">
+          <div className="glass-card p-4 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-foreground">
               Key Statistics
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               {[
                 { label: "Open", value: formatCurrency(quote.open) },
                 {
@@ -150,7 +148,7 @@ export default function StockDetailPage() {
 
         {/* Fund Position */}
         {holding && (
-          <div className="glass-card p-6">
+          <div className="glass-card p-4 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-foreground">
               Fund Position
             </h2>

@@ -31,11 +31,15 @@ export function StockChart({ ticker }: Props) {
       chartRef.current = null;
     }
 
+    const isMobile = window.innerWidth < 640;
+    const chartHeight = isMobile ? 280 : 400;
+
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(255, 255, 255, 0.55)",
         fontFamily: "'Roboto', sans-serif",
+        fontSize: isMobile ? 10 : 12,
       },
       grid: {
         vertLines: { color: "rgba(255, 255, 255, 0.05)" },
@@ -53,7 +57,7 @@ export function StockChart({ ticker }: Props) {
         timeVisible: true,
       },
       width: chartContainerRef.current.clientWidth,
-      height: 400,
+      height: chartHeight,
     });
 
     chartRef.current = chart;
@@ -93,8 +97,10 @@ export function StockChart({ ticker }: Props) {
     // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
+        const newIsMobile = window.innerWidth < 640;
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: newIsMobile ? 280 : 400,
         });
       }
     };
@@ -110,14 +116,14 @@ export function StockChart({ ticker }: Props) {
   }, [ticker, period]);
 
   return (
-    <div className="glass-card p-6">
+    <div className="glass-card p-4 sm:p-6">
       {/* Period selector */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-1 sm:gap-2">
         {PERIODS.map((p) => (
           <button
             key={p.value}
             onClick={() => setPeriod(p.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
               period === p.value
                 ? "bg-gold/20 text-gold"
                 : "text-muted hover:bg-card-glass hover:text-foreground"

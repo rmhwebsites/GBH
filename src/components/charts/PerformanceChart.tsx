@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   createChart,
   type IChartApi,
@@ -32,11 +32,16 @@ export function PerformanceChart({ portfolio, sp500, period }: Props) {
       chartRef.current = null;
     }
 
+    // Responsive height: smaller on mobile
+    const isMobile = window.innerWidth < 640;
+    const chartHeight = isMobile ? 280 : 400;
+
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(255, 255, 255, 0.55)",
         fontFamily: "'Roboto', sans-serif",
+        fontSize: isMobile ? 10 : 12,
       },
       grid: {
         vertLines: { color: "rgba(255, 255, 255, 0.05)" },
@@ -54,7 +59,7 @@ export function PerformanceChart({ portfolio, sp500, period }: Props) {
         timeVisible: false,
       },
       width: chartContainerRef.current.clientWidth,
-      height: 400,
+      height: chartHeight,
     });
 
     chartRef.current = chart;
@@ -85,8 +90,10 @@ export function PerformanceChart({ portfolio, sp500, period }: Props) {
     // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
+        const newIsMobile = window.innerWidth < 640;
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: newIsMobile ? 280 : 400,
         });
       }
     };
