@@ -52,28 +52,20 @@ export async function GET(request: Request) {
         break;
     }
 
-    // ── Fetch NAV history from Supabase ──────────────────────────────
-    // NAV history is recorded daily and correctly reflects the actual
-    // portfolio composition at each point in time (accounts for when
-    // stocks were acquired/sold, cash changes, etc.)
-    const { data: navHistory, error: navError } = await supabase
-      .from("nav_history")
-      .select(
-        "snapshot_date, nav_per_unit, total_value, total_units, total_gain_loss_percent, num_holdings"
-      )
-      .gte("snapshot_date", startDate)
-      .order("snapshot_date", { ascending: true });
-
-    if (navError) {
-      console.error("NAV history fetch error:", navError);
-    }
-
-    // ── Calculate today's live NAV as the latest data point ──────────
-    const [holdingsRes, metadataRes] = await Promise.all([
+    // ── Fetch all data in parallel ─────────────────────────────────────
+    const [navHistoryRes, holdingsRes, metadataRes] = await Promise.all([
+      supabase
+        .from("nav_history")
+        .select(
+          "snapshot_date, nav_per_unit, total_value, total_units, total_gain_loss_percent, num_holdings"
+        )
+        .gte("snapshot_date", startDate)
+        .order("snapshot_date", { ascending: true }),
       supabase.from("portfolio_holdings").select("*").eq("is_active", true),
       supabase.from("fund_metadata").select("*").limit(1).single(),
     ]);
 
+    const navHistory = navHistoryRes.data || [];
     const holdings = holdingsRes.data || [];
     const metadata = metadataRes.data;
     const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
@@ -81,10 +73,12 @@ export async function GET(request: Request) {
     const cashBalance = cashHolding?.shares || 0;
     const totalUnits = metadata?.total_units_outstanding || 0;
 
+    // ── Calculate live portfolio data (single quote fetch) ─────────────
     let liveNavPerUnit = 0;
     let liveTotalValue = 0;
+    let costBasisReturn = 0;
 
-    if (stockHoldings.length > 0 && totalUnits > 0) {
+    if (stockHoldings.length > 0) {
       const tickers = stockHoldings.map((h) => h.ticker);
       const quotes = await getQuotes(tickers);
       const summary = calculatePortfolioSummary(
@@ -93,14 +87,17 @@ export async function GET(request: Request) {
         cashBalance
       );
       liveTotalValue = summary.totalValue;
-      liveNavPerUnit = calculateNAV(summary.totalValue, totalUnits);
+      costBasisReturn = summary.totalGainLossPercent;
+
+      if (totalUnits > 0) {
+        liveNavPerUnit = calculateNAV(summary.totalValue, totalUnits);
+      }
     }
 
-    // ── Build the NAV-based performance data ─────────────────────────
-    // Combine stored NAV history with today's live NAV
+    // ── Build NAV time-series ──────────────────────────────────────────
     const navPoints: { date: string; navPerUnit: number }[] = [];
 
-    if (navHistory && navHistory.length > 0) {
+    if (navHistory.length > 0) {
       for (const nav of navHistory) {
         navPoints.push({
           date: nav.snapshot_date,
@@ -109,7 +106,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Add today's live NAV if it's not already in the history
+    // Add today's live NAV
     const todayDate = now.toLocaleDateString("en-CA", {
       timeZone: "America/New_York",
     });
@@ -117,98 +114,107 @@ export async function GET(request: Request) {
       navPoints.length > 0 ? navPoints[navPoints.length - 1].date : null;
 
     if (liveNavPerUnit > 0 && todayDate !== lastNavDate) {
-      navPoints.push({
-        date: todayDate,
-        navPerUnit: liveNavPerUnit,
-      });
+      navPoints.push({ date: todayDate, navPerUnit: liveNavPerUnit });
     } else if (liveNavPerUnit > 0 && todayDate === lastNavDate) {
-      // Update today's entry with live value
       navPoints[navPoints.length - 1].navPerUnit = liveNavPerUnit;
     }
 
-    // If we have no NAV data at all, return empty
-    if (navPoints.length === 0) {
-      return NextResponse.json({
-        portfolio: [],
-        sp500: [],
-        stats: {
-          portfolioReturn: 0,
-          sp500Return: 0,
-          alpha: 0,
-          totalValue: liveTotalValue,
-          holdingsCount: stockHoldings.length,
-        },
-      });
-    }
-
-    // ── Fetch SPY data for S&P 500 comparison ────────────────────────
+    // ── Fetch SPY data for S&P 500 comparison ──────────────────────────
     const spyHistorical = await getHistoricalData("SPY", period);
     const spyMap = new Map<string, number>();
     for (const point of spyHistorical) {
       spyMap.set(point.time, point.close);
     }
 
-    // ── Build indexed performance (base = 100) ──────────────────────
-    const firstNav = navPoints[0].navPerUnit;
-    const firstNavDate = navPoints[0].date;
-
-    // Find SPY price at or nearest to our first NAV date
-    let spyFirstPrice: number | undefined;
-    // First try exact match
-    spyFirstPrice = spyMap.get(firstNavDate);
-    // If no exact match, find the nearest date on or after
-    if (!spyFirstPrice) {
-      const spyDates = Array.from(spyMap.keys()).sort();
-      for (const date of spyDates) {
-        if (date >= firstNavDate) {
-          spyFirstPrice = spyMap.get(date);
-          break;
-        }
-      }
-    }
-    if (!spyFirstPrice) spyFirstPrice = 1;
+    // ── Build indexed performance (base = 100) ─────────────────────────
+    const hasNavHistory = navPoints.length >= 2;
 
     const portfolioPerformance: { time: string; value: number }[] = [];
     const sp500Performance: { time: string; value: number }[] = [];
 
-    for (const nav of navPoints) {
-      // Portfolio line: indexed to 100 based on NAV per unit
-      portfolioPerformance.push({
-        time: nav.date,
-        value: (nav.navPerUnit / firstNav) * 100,
-      });
+    let portfolioReturn = 0;
+    let sp500Return = 0;
 
-      // SPY line: find the closest SPY price for this date
-      const spyPrice = spyMap.get(nav.date);
-      if (spyPrice) {
-        sp500Performance.push({
+    if (hasNavHistory) {
+      // ── NAV-based chart (preferred — reflects actual portfolio changes) ──
+      const firstNav = navPoints[0].navPerUnit;
+      const firstNavDate = navPoints[0].date;
+
+      // Find SPY price at or nearest to our first NAV date
+      let spyFirstPrice: number | undefined;
+      spyFirstPrice = spyMap.get(firstNavDate);
+      if (!spyFirstPrice) {
+        const spyDates = Array.from(spyMap.keys()).sort();
+        for (const date of spyDates) {
+          if (date >= firstNavDate) {
+            spyFirstPrice = spyMap.get(date);
+            break;
+          }
+        }
+      }
+      if (!spyFirstPrice) spyFirstPrice = 1;
+
+      for (const nav of navPoints) {
+        portfolioPerformance.push({
           time: nav.date,
-          value: (spyPrice / spyFirstPrice!) * 100,
+          value: (nav.navPerUnit / firstNav) * 100,
+        });
+
+        const spyPrice = spyMap.get(nav.date);
+        if (spyPrice) {
+          sp500Performance.push({
+            time: nav.date,
+            value: (spyPrice / spyFirstPrice!) * 100,
+          });
+        }
+      }
+
+      // Add SPY today if not matched
+      const spyToday = spyMap.get(todayDate);
+      const lastSpyDate =
+        sp500Performance.length > 0
+          ? sp500Performance[sp500Performance.length - 1].time
+          : null;
+      if (spyToday && todayDate !== lastSpyDate) {
+        sp500Performance.push({
+          time: todayDate,
+          value: (spyToday / spyFirstPrice!) * 100,
         });
       }
-    }
 
-    // If SPY has data for today that wasn't matched, add it
-    const spyToday = spyMap.get(todayDate);
-    const lastSpyDate =
-      sp500Performance.length > 0
-        ? sp500Performance[sp500Performance.length - 1].time
-        : null;
-    if (spyToday && todayDate !== lastSpyDate) {
-      sp500Performance.push({
-        time: todayDate,
-        value: (spyToday / spyFirstPrice!) * 100,
-      });
-    }
+      const lastNavValue = navPoints[navPoints.length - 1].navPerUnit;
+      portfolioReturn = ((lastNavValue / firstNav) - 1) * 100;
 
-    // ── Calculate summary stats ──────────────────────────────────────
-    const lastNavValue = navPoints[navPoints.length - 1].navPerUnit;
-    const portfolioReturn = ((lastNavValue / firstNav) - 1) * 100;
+      if (sp500Performance.length > 0) {
+        sp500Return =
+          sp500Performance[sp500Performance.length - 1].value - 100;
+      }
+    } else {
+      // ── Not enough NAV history: show SPY chart + cost-basis return ──
+      const spyDates = Array.from(spyMap.keys()).sort();
+      if (spyDates.length > 0) {
+        const spyFirstPrice = spyMap.get(spyDates[0]) || 1;
+        for (const date of spyDates) {
+          const price = spyMap.get(date)!;
+          sp500Performance.push({
+            time: date,
+            value: (price / spyFirstPrice) * 100,
+          });
+        }
+        sp500Return =
+          sp500Performance[sp500Performance.length - 1].value - 100;
+      }
 
-    let sp500Return = 0;
-    if (sp500Performance.length > 0) {
-      sp500Return =
-        sp500Performance[sp500Performance.length - 1].value - 100;
+      // Use cost-basis return (total gain/loss %)
+      portfolioReturn = costBasisReturn;
+
+      // Show single portfolio point so the chart isn't entirely empty
+      if (liveNavPerUnit > 0) {
+        portfolioPerformance.push({
+          time: todayDate,
+          value: 100 + costBasisReturn,
+        });
+      }
     }
 
     return NextResponse.json({
