@@ -1,0 +1,138 @@
+import type {
+  PortfolioHolding,
+  StockQuote,
+  HoldingWithQuote,
+  PortfolioSummary,
+  MemberInvestment,
+  MemberDashboardData,
+} from "@/types/database";
+
+export function calculatePortfolioSummary(
+  holdings: PortfolioHolding[],
+  quotes: StockQuote[]
+): PortfolioSummary {
+  const quoteMap = new Map(quotes.map((q) => [q.ticker, q]));
+
+  let totalValue = 0;
+  let totalCost = 0;
+
+  const enrichedHoldings: HoldingWithQuote[] = holdings
+    .filter((h) => h.is_active)
+    .map((holding) => {
+      const quote = quoteMap.get(holding.ticker);
+      const currentValue = quote ? holding.shares * quote.price : 0;
+      const costBasis = holding.shares * holding.avg_cost_basis;
+      const gainLoss = currentValue - costBasis;
+      const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+
+      totalValue += currentValue;
+      totalCost += costBasis;
+
+      return {
+        ...holding,
+        quote: quote || createEmptyQuote(holding.ticker),
+        currentValue,
+        gainLoss,
+        gainLossPercent,
+        weight: 0, // calculated below
+      };
+    });
+
+  // Calculate weights
+  enrichedHoldings.forEach((h) => {
+    h.weight = totalValue > 0 ? (h.currentValue / totalValue) * 100 : 0;
+  });
+
+  // Sort by weight descending
+  enrichedHoldings.sort((a, b) => b.weight - a.weight);
+
+  return {
+    totalValue,
+    totalCost,
+    totalGainLoss: totalValue - totalCost,
+    totalGainLossPercent:
+      totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+    holdings: enrichedHoldings,
+  };
+}
+
+export function calculateNAV(
+  totalValue: number,
+  totalUnitsOutstanding: number
+): number {
+  if (totalUnitsOutstanding <= 0) return 0;
+  return totalValue / totalUnitsOutstanding;
+}
+
+export function calculateMemberData(
+  investments: MemberInvestment[],
+  navPerUnit: number
+): MemberDashboardData {
+  const totalInvested = investments.reduce(
+    (sum, inv) => sum + inv.amount_invested,
+    0
+  );
+  const totalUnits = investments.reduce(
+    (sum, inv) => sum + inv.units_owned,
+    0
+  );
+  const currentValue = totalUnits * navPerUnit;
+  const totalGainLoss = currentValue - totalInvested;
+  const totalGainLossPercent =
+    totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
+
+  return {
+    investments,
+    totalInvested,
+    totalUnits,
+    currentValue,
+    totalGainLoss,
+    totalGainLossPercent,
+  };
+}
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+export function formatPercent(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+export function formatNumber(value: number, decimals = 2): string {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+}
+
+export function formatLargeNumber(value: number): string {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  return formatCurrency(value);
+}
+
+function createEmptyQuote(ticker: string): StockQuote {
+  return {
+    ticker,
+    name: ticker,
+    price: 0,
+    change: 0,
+    changePercent: 0,
+    previousClose: 0,
+    open: 0,
+    dayHigh: 0,
+    dayLow: 0,
+    volume: 0,
+    marketCap: 0,
+    peRatio: null,
+    week52High: 0,
+    week52Low: 0,
+  };
+}
