@@ -10,6 +10,10 @@ import {
   Target,
   Activity,
   Zap,
+  Banknote,
+  Briefcase,
+  Scale,
+  Layers,
 } from "lucide-react";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { SectorChart } from "@/components/charts/SectorChart";
@@ -85,6 +89,19 @@ export default function AnalyticsPage() {
     .reduce((sum, h) => sum + h.weight, 0);
   const avgPosition = holdings.length > 0 ? 100 / holdings.length : 0;
 
+  // Portfolio detail values
+  const cashBalance = portfolio?.cashBalance || 0;
+  const totalValue = portfolio?.totalValue || 0;
+  const investmentsValue = totalValue - cashBalance;
+  const totalCost = portfolio?.totalCost || 0;
+  const totalGainLoss = portfolio?.totalGainLoss || 0;
+  const isPositive = totalGainLoss >= 0;
+  const cashWeight = totalValue > 0 ? (cashBalance / totalValue) * 100 : 0;
+  const investmentsWeight = totalValue > 0 ? (investmentsValue / totalValue) * 100 : 0;
+  const smallestPosition = holdings.length > 0
+    ? holdings[holdings.length - 1]
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -97,81 +114,166 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Performance Overview Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <div className="glass-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
-              <BarChart3 className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+      {/* Portfolio Overview — Two column: Account Summary + Performance */}
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
+        {/* Account Summary Card */}
+        <div className="glass-card p-4 sm:p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Briefcase className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">
+              Account Summary
+            </h2>
+          </div>
+
+          {/* Total Value Hero */}
+          <div className="mb-3 sm:mb-4">
+            <p className="text-xs text-muted">Total Account Value</p>
+            <p className="text-2xl font-bold text-foreground sm:text-3xl">
+              {formatCurrency(totalValue)}
+            </p>
+          </div>
+
+          {/* Breakdown */}
+          <div className="space-y-0 divide-y divide-card-border/40">
+            <div className="flex items-center justify-between py-2 sm:py-2.5">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-3.5 w-3.5 text-gold" />
+                <span className="text-xs text-muted sm:text-sm">Investments</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-medium text-foreground sm:text-sm">
+                  {formatCurrency(investmentsValue)}
+                </span>
+                <span className="ml-1.5 text-[10px] text-muted sm:text-xs">
+                  {investmentsWeight.toFixed(1)}%
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted">Fund Return</p>
-              <p
-                className={`text-lg font-semibold sm:text-xl ${
-                  portfolioReturn >= 0 ? "text-gain" : "text-loss"
-                }`}
-              >
-                {portfolioReturn >= 0 ? "+" : ""}
-                {portfolioReturn.toFixed(2)}%
-              </p>
+            <div className="flex items-center justify-between py-2 sm:py-2.5">
+              <div className="flex items-center gap-2">
+                <Banknote className="h-3.5 w-3.5 text-gold" />
+                <span className="text-xs text-muted sm:text-sm">Cash &amp; Equivalents</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-medium text-foreground sm:text-sm">
+                  {formatCurrency(cashBalance)}
+                </span>
+                <span className="ml-1.5 text-[10px] text-muted sm:text-xs">
+                  {cashWeight.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between py-2 sm:py-2.5">
+              <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
+              <span className="text-xs font-medium text-foreground sm:text-sm">
+                {formatCurrency(totalCost)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 sm:py-2.5">
+              <div className="flex items-center gap-2">
+                {isPositive ? (
+                  <TrendingUp className="h-3.5 w-3.5 text-gain" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5 text-loss" />
+                )}
+                <span className="text-xs text-muted sm:text-sm">Total Gain/Loss</span>
+              </div>
+              <div className="text-right">
+                <span
+                  className={`text-xs font-semibold sm:text-sm ${
+                    isPositive ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {formatCurrency(totalGainLoss)}
+                </span>
+                <span
+                  className={`ml-1.5 text-[10px] sm:text-xs ${
+                    isPositive ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  ({formatPercent(portfolio?.totalGainLossPercent || 0)})
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="glass-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5CA0CE]/10 sm:h-10 sm:w-10">
-              <Activity className="h-4 w-4 text-[#5CA0CE] sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted">S&amp;P 500</p>
-              <p
-                className={`text-lg font-semibold sm:text-xl ${
-                  sp500Return >= 0 ? "text-gain" : "text-loss"
-                }`}
-              >
-                {sp500Return >= 0 ? "+" : ""}
-                {sp500Return.toFixed(2)}%
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
-                alpha >= 0 ? "bg-gain/10" : "bg-loss/10"
-              }`}
-            >
-              <Target
-                className={`h-4 w-4 sm:h-5 sm:w-5 ${alpha >= 0 ? "text-gain" : "text-loss"}`}
-              />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted">Alpha vs S&amp;P</p>
-              <p
-                className={`text-lg font-semibold sm:text-xl ${
-                  alpha >= 0 ? "text-gain" : "text-loss"
-                }`}
-              >
-                {alpha >= 0 ? "+" : ""}
-                {alpha.toFixed(2)}%
-              </p>
+        {/* Performance Cards — 2x2 grid */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+                <BarChart3 className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Fund Return</p>
+                <p
+                  className={`text-lg font-semibold sm:text-xl ${
+                    portfolioReturn >= 0 ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {portfolioReturn >= 0 ? "+" : ""}
+                  {portfolioReturn.toFixed(2)}%
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="glass-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
-              <Zap className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5CA0CE]/10 sm:h-10 sm:w-10">
+                <Activity className="h-4 w-4 text-[#5CA0CE] sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">S&amp;P 500</p>
+                <p
+                  className={`text-lg font-semibold sm:text-xl ${
+                    sp500Return >= 0 ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {sp500Return >= 0 ? "+" : ""}
+                  {sp500Return.toFixed(2)}%
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted">Total AUM</p>
-              <p className="text-lg font-semibold text-foreground sm:text-xl">
-                {formatLargeNumber(portfolio?.totalValue || 0)}
-              </p>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
+                  alpha >= 0 ? "bg-gain/10" : "bg-loss/10"
+                }`}
+              >
+                <Target
+                  className={`h-4 w-4 sm:h-5 sm:w-5 ${alpha >= 0 ? "text-gain" : "text-loss"}`}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Alpha vs S&amp;P</p>
+                <p
+                  className={`text-lg font-semibold sm:text-xl ${
+                    alpha >= 0 ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {alpha >= 0 ? "+" : ""}
+                  {alpha.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 sm:p-5">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
+                <Layers className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Holdings</p>
+                <p className="text-lg font-semibold text-foreground sm:text-xl">
+                  {holdings.length} stocks
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -236,41 +338,26 @@ export default function AnalyticsPage() {
         {/* Sector Allocation */}
         <SectorChart holdings={holdings} />
 
-        {/* Portfolio Metrics */}
+        {/* Concentration & Risk Metrics */}
         <div className="glass-card p-4 sm:p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Portfolio Metrics
-          </h2>
-          <div className="space-y-3 sm:space-y-4">
+          <div className="mb-4 flex items-center gap-2">
+            <Scale className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Concentration & Risk
+            </h2>
+          </div>
+          <div className="space-y-0 divide-y divide-card-border/40">
             {[
-              {
-                label: "Number of Holdings",
-                value: `${holdings.length}`,
-              },
-              {
-                label: "Total AUM",
-                value: formatCurrency(portfolio?.totalValue || 0),
-              },
-              {
-                label: "Total Cost Basis",
-                value: formatCurrency(portfolio?.totalCost || 0),
-              },
-              {
-                label: "Total Gain/Loss",
-                value: formatCurrency(portfolio?.totalGainLoss || 0),
-                color:
-                  (portfolio?.totalGainLoss || 0) >= 0
-                    ? "text-gain"
-                    : "text-loss",
-              },
-              {
-                label: "Cash & Equivalents",
-                value: formatCurrency(portfolio?.cashBalance || 0),
-              },
               {
                 label: "Largest Position",
                 value: holdings.length > 0
                   ? `${holdings[0].ticker} (${holdings[0].weight.toFixed(1)}%)`
+                  : "N/A",
+              },
+              {
+                label: "Smallest Position",
+                value: smallestPosition
+                  ? `${smallestPosition.ticker} (${smallestPosition.weight.toFixed(1)}%)`
                   : "N/A",
               },
               {
@@ -285,15 +372,17 @@ export default function AnalyticsPage() {
                 label: "Sectors Represented",
                 value: `${sectorAllocations.length} of 11`,
               },
-            ].map(({ label, value, color }) => (
+              {
+                label: "Cash Allocation",
+                value: `${cashWeight.toFixed(1)}%`,
+              },
+            ].map(({ label, value }) => (
               <div
                 key={label}
-                className="flex items-center justify-between border-b border-card-border/30 py-2"
+                className="flex items-center justify-between py-2.5 sm:py-3"
               >
                 <span className="text-xs text-muted sm:text-sm">{label}</span>
-                <span
-                  className={`text-xs font-medium sm:text-sm ${color || "text-foreground"}`}
-                >
+                <span className="text-xs font-medium text-foreground sm:text-sm">
                   {value}
                 </span>
               </div>

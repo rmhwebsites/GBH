@@ -3,9 +3,9 @@
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
-  PieChart,
   Banknote,
+  BarChart3,
+  Briefcase,
 } from "lucide-react";
 import { formatCurrency, formatPercent } from "@/lib/calculations";
 
@@ -27,97 +27,109 @@ export function PortfolioSummary({
   cashBalance = 0,
 }: Props) {
   const isPositive = totalGainLoss >= 0;
+  const investmentsValue = totalValue - cashBalance;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-      {/* Total Portfolio Value */}
-      <div className="glass-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="rounded-lg bg-gold/10 p-2">
-            <DollarSign className="h-4 w-4 text-gold" />
-          </div>
-          <span className="text-xs text-muted sm:text-sm">Portfolio Value</span>
+    <div className="space-y-3 sm:space-y-4">
+      {/* Account Overview Card */}
+      <div className="glass-card p-4 sm:p-6">
+        <div className="mb-4 flex items-center gap-2 sm:mb-5">
+          <Briefcase className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+          <h2 className="text-sm font-semibold text-foreground sm:text-base">
+            Account Overview
+          </h2>
         </div>
-        <p className="text-lg font-semibold text-foreground sm:text-2xl">
-          {formatCurrency(totalValue)}
-        </p>
-      </div>
 
-      {/* Total Cost Basis */}
-      <div className="glass-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="rounded-lg bg-navy/30 p-2">
-            <PieChart className="h-4 w-4 text-gold-light" />
-          </div>
-          <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
-        </div>
-        <p className="text-lg font-semibold text-foreground sm:text-2xl">
-          {formatCurrency(totalCost)}
-        </p>
-      </div>
-
-      {/* Total Gain/Loss */}
-      <div className="glass-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <div
-            className={`rounded-lg p-2 ${
-              isPositive ? "bg-gain/10" : "bg-loss/10"
-            }`}
-          >
-            {isPositive ? (
-              <TrendingUp className="h-4 w-4 text-gain" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-loss" />
-            )}
-          </div>
-          <span className="text-xs text-muted sm:text-sm">Total Gain/Loss</span>
-        </div>
-        <p
-          className={`text-lg font-semibold sm:text-2xl ${
-            isPositive ? "text-gain" : "text-loss"
-          }`}
-        >
-          {formatCurrency(totalGainLoss)}
-        </p>
-        <p
-          className={`mt-1 text-xs sm:text-sm ${
-            isPositive ? "text-gain" : "text-loss"
-          }`}
-        >
-          {formatPercent(totalGainLossPercent)}
-        </p>
-      </div>
-
-      {/* Cash Balance */}
-      <div className="glass-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="rounded-lg bg-gold/10 p-2">
-            <Banknote className="h-4 w-4 text-gold" />
-          </div>
-          <span className="text-xs text-muted sm:text-sm">Cash & Equivalents</span>
-        </div>
-        <p className="text-lg font-semibold text-foreground sm:text-2xl">
-          {formatCurrency(cashBalance)}
-        </p>
-        {totalValue > 0 && (
-          <p className="mt-1 text-xs text-muted sm:text-sm">
-            {((cashBalance / totalValue) * 100).toFixed(1)}% of AUM
+        {/* Total Value - Hero */}
+        <div className="mb-4 sm:mb-5">
+          <p className="text-xs text-muted sm:text-sm">Total Account Value</p>
+          <p className="text-2xl font-bold text-foreground sm:text-3xl">
+            {formatCurrency(totalValue)}
           </p>
-        )}
-      </div>
-
-      {/* Holdings Count */}
-      <div className="glass-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="rounded-lg bg-gold/10 p-2">
-            <TrendingUp className="h-4 w-4 text-gold" />
-          </div>
-          <span className="text-xs text-muted sm:text-sm">Active Holdings</span>
         </div>
-        <p className="text-lg font-semibold text-foreground sm:text-2xl">
-          {holdingsCount}
-        </p>
-        <p className="mt-1 text-xs text-muted sm:text-sm">stocks</p>
+
+        {/* Breakdown Table */}
+        <div className="space-y-0 divide-y divide-card-border/40">
+          {/* Investments */}
+          <div className="flex items-center justify-between py-2.5 sm:py-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gold/10 sm:h-8 sm:w-8">
+                <BarChart3 className="h-3.5 w-3.5 text-gold sm:h-4 sm:w-4" />
+              </div>
+              <span className="text-xs text-muted sm:text-sm">Investments</span>
+            </div>
+            <span className="text-sm font-medium text-foreground sm:text-base">
+              {formatCurrency(investmentsValue)}
+            </span>
+          </div>
+
+          {/* Cash & Equivalents */}
+          <div className="flex items-center justify-between py-2.5 sm:py-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gold/10 sm:h-8 sm:w-8">
+                <Banknote className="h-3.5 w-3.5 text-gold sm:h-4 sm:w-4" />
+              </div>
+              <span className="text-xs text-muted sm:text-sm">Cash &amp; Equivalents</span>
+            </div>
+            <span className="text-sm font-medium text-foreground sm:text-base">
+              {formatCurrency(cashBalance)}
+            </span>
+          </div>
+
+          {/* Cost Basis */}
+          <div className="flex items-center justify-between py-2.5 sm:py-3">
+            <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
+            <span className="text-sm font-medium text-foreground sm:text-base">
+              {formatCurrency(totalCost)}
+            </span>
+          </div>
+
+          {/* Total Gain/Loss */}
+          <div className="flex items-center justify-between py-2.5 sm:py-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-md sm:h-8 sm:w-8 ${
+                  isPositive ? "bg-gain/10" : "bg-loss/10"
+                }`}
+              >
+                {isPositive ? (
+                  <TrendingUp className="h-3.5 w-3.5 text-gain sm:h-4 sm:w-4" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5 text-loss sm:h-4 sm:w-4" />
+                )}
+              </div>
+              <span className="text-xs text-muted sm:text-sm">
+                Total Gain/Loss
+              </span>
+            </div>
+            <div className="text-right">
+              <span
+                className={`text-sm font-semibold sm:text-base ${
+                  isPositive ? "text-gain" : "text-loss"
+                }`}
+              >
+                {formatCurrency(totalGainLoss)}
+              </span>
+              <span
+                className={`ml-2 text-xs sm:text-sm ${
+                  isPositive ? "text-gain" : "text-loss"
+                }`}
+              >
+                ({formatPercent(totalGainLossPercent)})
+              </span>
+            </div>
+          </div>
+
+          {/* Holdings Count */}
+          <div className="flex items-center justify-between py-2.5 sm:py-3">
+            <span className="text-xs text-muted sm:text-sm">
+              Active Holdings
+            </span>
+            <span className="text-sm font-medium text-foreground sm:text-base">
+              {holdingsCount} stocks
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
