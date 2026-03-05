@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import memberstack from "@memberstack/admin";
 
-const ms = memberstack.init(process.env.MEMBERSTACK_SECRET_KEY || "");
+// Lazy-init Memberstack admin SDK (avoids crashing at import time if key is missing)
+let _ms: ReturnType<typeof memberstack.init> | null = null;
+
+function getMs() {
+  if (!_ms) {
+    const key = process.env.MEMBERSTACK_SECRET_KEY;
+    if (!key) {
+      throw new Error("MEMBERSTACK_SECRET_KEY is not set");
+    }
+    _ms = memberstack.init(key);
+  }
+  return _ms;
+}
 
 // Server-side admin IDs (not exposed to client)
 const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_MEMBER_IDS || "")
@@ -25,6 +37,7 @@ export async function verifyAuth(
     const token = request.cookies.get("_ms-mid")?.value;
     if (!token) return null;
 
+    const ms = getMs();
     const payload = await ms.verifyToken({ token });
     if (!payload?.id) return null;
 
