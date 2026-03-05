@@ -12,6 +12,12 @@ import {
   Calendar,
   Clock,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  History,
+  Vote,
+  ArrowLeft,
+  User,
 } from "lucide-react";
 import Image from "next/image";
 import type { VotingConfig, VotingResult } from "@/types/database";
@@ -24,17 +30,15 @@ import {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// Format ISO string to local datetime-local input value
+// ─── Helpers ───
 function toLocalInput(isoStr: string | null): string {
   if (!isoStr) return "";
   const d = new Date(isoStr);
-  // Adjust for local timezone offset
   const offset = d.getTimezoneOffset() * 60000;
   const local = new Date(d.getTime() - offset);
   return local.toISOString().slice(0, 16);
 }
 
-// Format for display
 function formatDate(isoStr: string | null): string {
   if (!isoStr) return "Not set";
   return new Date(isoStr).toLocaleString("en-US", {
@@ -46,11 +50,41 @@ function formatDate(isoStr: string | null): string {
   });
 }
 
+function formatShortDate(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// ─── Types ───
 interface ConfigWithVisibility extends VotingConfig {
   is_visible: boolean;
 }
 
-/** Avatar component — shows photo if available, else initials */
+interface HistoryResult extends VotingResult {
+  voters: string[];
+}
+
+interface HistoryVoter {
+  voter_memberstack_id: string;
+  voter_name: string;
+  voted_for: string[];
+  voted_at: string;
+}
+
+interface HistorySession {
+  session_id: string;
+  date: string;
+  end_date: string;
+  total_voters: number;
+  total_votes: number;
+  results: HistoryResult[];
+  voters: HistoryVoter[];
+}
+
+// ─── Avatar Component ───
 function MemberAvatar({
   name,
   size = "md",
@@ -94,6 +128,217 @@ function MemberAvatar({
   );
 }
 
+// ─── Session Detail View ───
+function SessionDetail({
+  session,
+  totalMembers,
+  onBack,
+}: {
+  session: HistorySession;
+  totalMembers: number;
+  onBack: () => void;
+}) {
+  const participationRate =
+    totalMembers > 0
+      ? ((session.total_voters / totalMembers) * 100).toFixed(1)
+      : "0";
+
+  return (
+    <div className="space-y-6">
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-sm text-muted hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Voting Management
+      </button>
+
+      {/* Session Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">
+          Vote Results
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          {formatShortDate(session.date)}
+          {session.date !== session.end_date &&
+            ` — ${formatShortDate(session.end_date)}`}
+        </p>
+      </div>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gold" />
+            <p className="text-sm text-muted">Participation</p>
+          </div>
+          <p className="mt-1 text-2xl font-semibold text-foreground">
+            {session.total_voters}{" "}
+            <span className="text-sm font-normal text-muted">
+              of {totalMembers} ({participationRate}%)
+            </span>
+          </p>
+        </div>
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-gold" />
+            <p className="text-sm text-muted">Total Votes Cast</p>
+          </div>
+          <p className="mt-1 text-2xl font-semibold text-foreground">
+            {session.total_votes}
+          </p>
+        </div>
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-gold" />
+            <p className="text-sm text-muted">Winner</p>
+          </div>
+          <p className="mt-1 text-lg font-semibold text-foreground truncate">
+            {session.results[0]?.candidate_name || "—"}
+          </p>
+          {session.results[0] && (
+            <p className="text-xs text-muted">
+              {session.results[0].vote_count}{" "}
+              {session.results[0].vote_count === 1 ? "vote" : "votes"}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Full Results with Voter Breakdown */}
+      <div className="glass-card overflow-hidden">
+        <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="text-lg font-semibold text-foreground">
+            Candidate Results
+          </h2>
+        </div>
+
+        <div className="divide-y divide-card-border/50">
+          {session.results.map((result, index) => {
+            const maxCount = session.results[0]?.vote_count || 1;
+            const barWidth = (result.vote_count / maxCount) * 100;
+            const pctOfVoters =
+              session.total_voters > 0
+                ? ((result.vote_count / session.total_voters) * 100).toFixed(1)
+                : "0";
+            const medals = ["🥇", "🥈", "🥉"];
+            const medal = medals[index] || "";
+
+            return (
+              <div key={result.candidate_memberstack_id} className="p-4 sm:p-5">
+                {/* Candidate row */}
+                <div className="flex items-center gap-3">
+                  <MemberAvatar name={result.candidate_name} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {medal ? (
+                        <span className="text-base flex-shrink-0">{medal}</span>
+                      ) : (
+                        <span className="w-6 text-center text-xs font-bold text-muted flex-shrink-0">
+                          #{index + 1}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-foreground truncate">
+                        {result.candidate_name}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <div className="flex-1 h-2.5 overflow-hidden rounded-full bg-card-border">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <span className="flex-shrink-0 text-sm font-bold text-gold">
+                        {result.vote_count}
+                      </span>
+                      <span className="flex-shrink-0 text-xs text-muted">
+                        ({pctOfVoters}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voted by list */}
+                {result.voters && result.voters.length > 0 && (
+                  <div className="mt-3 ml-12 flex flex-wrap gap-1.5">
+                    {result.voters.map((voterName, vi) => (
+                      <span
+                        key={vi}
+                        className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-muted"
+                      >
+                        <User className="h-2.5 w-2.5" />
+                        {voterName}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Voter Audit Log */}
+      <div className="glass-card overflow-hidden">
+        <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="text-lg font-semibold text-foreground">
+            Voter Audit Log
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Every member&apos;s selections, ordered by time
+          </p>
+        </div>
+
+        {session.voters.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted">No voter data available.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-card-border/50">
+            {session.voters.map((voter) => (
+              <div
+                key={voter.voter_memberstack_id}
+                className="flex items-start gap-3 px-4 py-3 sm:px-6"
+              >
+                <MemberAvatar name={voter.voter_name} size="sm" className="mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {voter.voter_name}
+                    </p>
+                    <span className="flex-shrink-0 text-[11px] text-muted">
+                      {new Date(voter.voted_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {voter.voted_for.map((name, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-medium text-gold"
+                      >
+                        <Vote className="h-2.5 w-2.5" />
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Admin Page ───
 export default function AdminVotingPage() {
   const { data: config, isLoading: loadingConfig } =
     useSWR<ConfigWithVisibility>("/api/admin/voting/config", fetcher);
@@ -109,6 +354,11 @@ export default function AdminVotingPage() {
     fetcher
   );
 
+  const { data: historyData } = useSWR<{ sessions: HistorySession[] }>(
+    "/api/admin/voting/history",
+    fetcher
+  );
+
   const [isActive, setIsActive] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -117,6 +367,7 @@ export default function AdminVotingPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null);
 
   // Sync form state with fetched config
   useEffect(() => {
@@ -146,7 +397,6 @@ export default function AdminVotingPage() {
     setSaving(true);
     setSaveMessage(null);
 
-    // Validate dates
     if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
       setSaveMessage("Error: Start date must be before expiration date");
       setSaving(false);
@@ -176,6 +426,7 @@ export default function AdminVotingPage() {
       setSaveMessage("Settings saved successfully!");
       mutate("/api/admin/voting/config");
       mutate("/api/voting/config");
+      mutate("/api/admin/voting/history");
       setTimeout(() => setSaveMessage(null), 3000);
     } catch {
       setSaveMessage("Failed to save settings.");
@@ -192,11 +443,23 @@ export default function AdminVotingPage() {
     );
   }
 
+  // If a session detail is selected, show it
+  if (selectedSession) {
+    return (
+      <SessionDetail
+        session={selectedSession}
+        totalMembers={totalMembers}
+        onBack={() => setSelectedSession(null)}
+      />
+    );
+  }
+
   const results = resultsData?.results || [];
   const top5 = results.slice(0, 5);
   const totalVoters = resultsData?.totalVoters || 0;
   const participationRate =
     totalMembers > 0 ? ((totalVoters / totalMembers) * 100).toFixed(1) : "0";
+  const pastSessions = historyData?.sessions || [];
 
   return (
     <div className="space-y-6">
@@ -431,7 +694,7 @@ export default function AdminVotingPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Current Session Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="glass-card p-5">
           <div className="flex items-center gap-2">
@@ -501,10 +764,7 @@ export default function AdminVotingPage() {
 
               return (
                 <div key={result.candidate_memberstack_id} className="flex items-center gap-3">
-                  {/* Photo */}
                   <MemberAvatar name={result.candidate_name} size="sm" />
-
-                  {/* Bar + Info */}
                   <div className="flex-1 min-w-0">
                     <div className="mb-1.5 flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0">
@@ -638,6 +898,71 @@ export default function AdminVotingPage() {
           </div>
         )}
       </div>
+
+      {/* Past Voting History */}
+      {pastSessions.length > 0 && (
+        <div className="glass-card overflow-hidden">
+          <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-gold" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Past Voting Sessions
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted">
+              Click a session to see full details and voter audit log
+            </p>
+          </div>
+
+          <div className="divide-y divide-card-border/50">
+            {pastSessions.map((session) => {
+              const winner = session.results[0];
+              return (
+                <button
+                  key={session.session_id}
+                  onClick={() => setSelectedSession(session)}
+                  className="w-full text-left px-4 py-4 sm:px-6 hover:bg-white/[0.04] transition-colors group"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          {formatShortDate(session.date)}
+                        </span>
+                        {session.date !== session.end_date && (
+                          <span className="text-xs text-muted">
+                            — {formatShortDate(session.end_date)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {session.total_voters} voter{session.total_voters !== 1 ? "s" : ""}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <BarChart3 className="h-3 w-3" />
+                          {session.total_votes} vote{session.total_votes !== 1 ? "s" : ""}
+                        </span>
+                        {winner && (
+                          <span className="flex items-center gap-1">
+                            <Trophy className="h-3 w-3 text-gold" />
+                            <span className="text-gold font-medium">
+                              {winner.candidate_name}
+                            </span>
+                            <span>({winner.vote_count})</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted group-hover:text-foreground transition-colors flex-shrink-0" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
