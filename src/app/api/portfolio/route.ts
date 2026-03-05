@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary } from "@/lib/calculations";
+import { requireAuth, isAuthError } from "@/lib/auth";
 
-export const revalidate = 300;
-
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const supabase = createServerClient();
 

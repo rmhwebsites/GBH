@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAuth, isAuthError } from "@/lib/auth";
 
 /**
  * Returns daily NAV history from Supabase.
@@ -7,7 +8,9 @@ import { createServerClient } from "@/lib/supabase";
  *   ?days=30  — last N days (default 90)
  *   ?from=2025-05-01&to=2025-12-31  — date range
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from");

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
+import { requireAuth, isAuthError } from "@/lib/auth";
 import {
   calculatePortfolioSummary,
   calculateNAV,
@@ -8,9 +9,12 @@ import {
 } from "@/lib/calculations";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { id: memberstackId } = await params;
     const supabase = createServerClient();

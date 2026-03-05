@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHistoricalData } from "@/lib/yahoo";
+import { requireAuth, isAuthError } from "@/lib/auth";
 
 type Period = "1d" | "5d" | "1mo" | "3mo" | "1y" | "5y" | "max";
 
@@ -7,6 +8,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const { ticker } = await params;
     const period =

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAdmin, isAuthError } from "@/lib/auth";
 
 /**
  * Batch endpoint to delete all existing investment records and re-enter
@@ -9,6 +10,9 @@ import { createServerClient } from "@/lib/supabase";
  * If nav is provided, units = amount / nav. Otherwise units = amount (1:1 at $1.00 NAV).
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await request.json();
     const investments: Array<{

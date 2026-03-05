@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary } from "@/lib/calculations";
+import { requireAuth, isAuthError } from "@/lib/auth";
 
-export const revalidate = 300; // 5 min cache
-
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (isAuthError(auth)) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "max";

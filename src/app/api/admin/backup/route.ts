@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { google } from "googleapis";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
+import { verifyAuth } from "@/lib/auth";
 
 /**
  * Daily backup endpoint that:
@@ -28,11 +29,15 @@ import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify authorization
+    // Verify authorization: accept CRON_SECRET or admin session
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
+    const auth = await verifyAuth(request);
+    const isAdmin = auth?.isAdmin === true;
+    const hasCronSecret =
+      cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!hasCronSecret && !isAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -115,7 +120,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Google Sheets backup ────────────────────────────────────────
-    const auth = new google.auth.GoogleAuth({
+    const googleAuth = new google.auth.GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
         private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
@@ -123,7 +128,7 @@ export async function GET(request: NextRequest) {
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    const sheets = google.sheets({ version: "v4", auth });
+    const sheets = google.sheets({ version: "v4", auth: googleAuth });
     const spreadsheetId = process.env.GOOGLE_SHEET_ID!;
 
     // Ensure all sheets exist

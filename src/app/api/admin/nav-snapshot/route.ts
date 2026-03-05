@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
+import { verifyAuth } from "@/lib/auth";
 
 /**
  * Saves a NAV snapshot to Supabase nav_history.
@@ -12,11 +13,15 @@ import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify authorization (accept either CRON_SECRET or admin check)
+    // Verify authorization: accept CRON_SECRET or admin session
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
+    const auth = await verifyAuth(request);
+    const isAdmin = auth?.isAdmin === true;
+    const hasCronSecret =
+      cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!hasCronSecret && !isAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

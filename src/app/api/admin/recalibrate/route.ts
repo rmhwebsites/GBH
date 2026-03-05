@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary } from "@/lib/calculations";
+import { requireAdmin, isAuthError } from "@/lib/auth";
 
 /**
  * Recalibrate fund units so NAV accurately reflects portfolio performance.
@@ -17,7 +18,10 @@ import { calculatePortfolioSummary } from "@/lib/calculations";
  *   NAV = portfolio_value / portfolio_cost_basis
  *   Member return % = portfolio return % (correct!)
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (isAuthError(auth)) return auth;
+
   try {
     const supabase = createServerClient();
 
