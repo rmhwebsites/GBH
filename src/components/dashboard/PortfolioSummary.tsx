@@ -158,7 +158,7 @@ export function PortfolioSummary({
         ))}
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row 1 */}
       <div className="mt-2 border-t border-card-border/40 px-5 py-3.5 sm:px-6 sm:py-4">
         <div className="grid grid-cols-4 gap-3 sm:gap-4">
           <div>
@@ -195,6 +195,54 @@ export function PortfolioSummary({
               }`}
             >
               {formatPercent(totalGainLossPercent)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Row 2 */}
+      <div className="border-t border-card-border/20 px-5 py-3.5 sm:px-6 sm:py-4">
+        <div className="grid grid-cols-4 gap-3 sm:gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Cost Basis
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
+              {formatCurrency(totalCost)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Total Gain/Loss
+            </p>
+            <p
+              className={`mt-0.5 text-sm font-semibold sm:text-base ${
+                isPositive ? "text-gain" : "text-loss"
+              }`}
+            >
+              {totalGainLoss >= 0 ? "+" : ""}
+              {formatCurrency(totalGainLoss)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Day Change
+            </p>
+            <p
+              className={`mt-0.5 text-sm font-semibold sm:text-base ${
+                isDayPositive ? "text-gain" : "text-loss"
+              }`}
+            >
+              {totalDayChange >= 0 ? "+" : ""}
+              {formatCurrency(totalDayChange)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Holdings
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
+              {holdingsCount}
             </p>
           </div>
         </div>
