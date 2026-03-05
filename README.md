@@ -20,7 +20,8 @@ A live investment dashboard for GBH Capital's pooled investment fund. Members ca
 ## Features
 
 ### Member Dashboard
-- **Portfolio Overview** — Live stock prices, holdings table, allocation donut chart, fund performance
+- **Portfolio Overview** — Robinhood-style interactive chart with hover-to-see-value, live NAV, day change, period selector (1M/3M/1Y/All)
+- **Holdings Table** — Live stock prices, day change ($ and %), total return, weight, allocation donut and sector charts
 - **Stock Detail** — Branded TradingView chart (1D/1W/1M/3M/1Y/ALL), key stats, fund position
 - **My Investment** — Current value, total return, units owned, NAV at entry, investment history
 - **Trade History** — Filterable buy/sell log with ticker and action filters

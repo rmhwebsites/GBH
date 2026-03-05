@@ -42,16 +42,33 @@ export async function POST(request: NextRequest) {
 
     let unitsToGrant = 0;
 
-    if (metadata && metadata.total_units_outstanding > 0 && holdings && holdings.length > 0) {
-      // Import dynamically to avoid circular deps at module level
+    if (
+      metadata &&
+      metadata.total_units_outstanding > 0 &&
+      holdings &&
+      holdings.length > 0
+    ) {
       const { getQuotes } = await import("@/lib/yahoo");
       const { calculatePortfolioSummary, calculateNAV } = await import(
         "@/lib/calculations"
       );
 
-      const tickers = holdings.map((h) => h.ticker);
-      const quotes = await getQuotes(tickers);
-      const summary = calculatePortfolioSummary(holdings, quotes);
+      // Separate cash from stock holdings (match investments API)
+      const cashHolding = holdings.find(
+        (h: { ticker: string }) => h.ticker === "CASH"
+      );
+      const stockHoldings = holdings.filter(
+        (h: { ticker: string }) => h.ticker !== "CASH"
+      );
+      const cashBalance = cashHolding?.shares || 0;
+
+      const tickers = stockHoldings.map((h: { ticker: string }) => h.ticker);
+      const quotes = tickers.length > 0 ? await getQuotes(tickers) : [];
+      const summary = calculatePortfolioSummary(
+        stockHoldings,
+        quotes,
+        cashBalance
+      );
       const navPerUnit = calculateNAV(
         summary.totalValue,
         metadata.total_units_outstanding
@@ -114,6 +131,25 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = createServerClient();
 
+    // Get the old record to calculate unit difference
+    const { data: oldRecord, error: fetchError } = await supabase
+      .from("member_investments")
+      .select("units_owned")
+      .eq("id", body.id)
+      .single();
+
+    if (fetchError || !oldRecord) {
+      return NextResponse.json(
+        { error: "Record not found" },
+        { status: 404 }
+      );
+    }
+
+    const oldUnits = oldRecord.units_owned;
+    const newUnits = body.units_owned;
+    const unitsDiff = newUnits - oldUnits;
+
+    // Update the member record
     const { data, error } = await supabase
       .from("member_investments")
       .update({
@@ -128,6 +164,26 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Sync fund_metadata.total_units_outstanding if units changed
+    if (unitsDiff !== 0) {
+      const { data: metadata } = await supabase
+        .from("fund_metadata")
+        .select("*")
+        .limit(1)
+        .single();
+
+      if (metadata) {
+        const newTotalUnits = Math.max(
+          0,
+          metadata.total_units_outstanding + unitsDiff
+        );
+        await supabase
+          .from("fund_metadata")
+          .update({ total_units_outstanding: newTotalUnits })
+          .eq("id", metadata.id);
+      }
     }
 
     return NextResponse.json({ member: data });

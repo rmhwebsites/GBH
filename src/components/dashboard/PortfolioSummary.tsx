@@ -1,13 +1,19 @@
 "use client";
 
-import {
-  TrendingUp,
-  TrendingDown,
-  Banknote,
-  BarChart3,
-  Briefcase,
-} from "lucide-react";
+import { useState, useCallback } from "react";
+import useSWR from "swr";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { formatCurrency, formatPercent } from "@/lib/calculations";
+import { FundValueChart } from "@/components/charts/FundValueChart";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const PERIODS = [
+  { label: "1M", value: "1mo" },
+  { label: "3M", value: "3mo" },
+  { label: "1Y", value: "1y" },
+  { label: "All", value: "max" },
+] as const;
 
 interface Props {
   totalValue: number;
@@ -30,133 +36,171 @@ export function PortfolioSummary({
   holdingsCount,
   cashBalance = 0,
 }: Props) {
+  const [period, setPeriod] = useState("max");
+  const [hoveredValue, setHoveredValue] = useState<number | null>(null);
+  const [hoveredTime, setHoveredTime] = useState<string | null>(null);
+
+  const { data: chartData } = useSWR(
+    `/api/portfolio/value-history?period=${period}`,
+    fetcher,
+    { refreshInterval: 5 * 60 * 1000 }
+  );
+
+  const { data: navData } = useSWR("/api/portfolio/nav", fetcher, {
+    refreshInterval: 5 * 60 * 1000,
+  });
+
   const isPositive = totalGainLoss >= 0;
   const isDayPositive = totalDayChange >= 0;
   const investmentsValue = totalValue - cashBalance;
 
+  // Chart data
+  const points = chartData?.points || [];
+  const firstValue = points.length > 0 ? points[0].value : totalValue;
+  const chartIsPositive = totalValue >= firstValue;
+
+  // Handle crosshair hover
+  const handleCrosshairMove = useCallback(
+    (value: number | null, time: string | null) => {
+      setHoveredValue(value);
+      setHoveredTime(time);
+    },
+    []
+  );
+
+  // When hovering: show change from first value in period to hovered point
+  // When not hovering: show today's day change
+  const isHovering = hoveredValue !== null;
+
+  const displayValue = hoveredValue ?? totalValue;
+
+  const displayChange = isHovering
+    ? (hoveredValue as number) - firstValue
+    : totalDayChange;
+
+  const displayChangePercent = isHovering
+    ? firstValue > 0
+      ? (((hoveredValue as number) - firstValue) / firstValue) * 100
+      : 0
+    : totalDayChangePercent;
+
+  const displayIsPositive = isHovering
+    ? (hoveredValue as number) >= firstValue
+    : isDayPositive;
+
+  const displayLabel = isHovering
+    ? formatDateLabel(hoveredTime as string)
+    : "Today";
+
+  const nav = navData?.nav || 0;
+
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Account Overview Card */}
-      <div className="glass-card p-4 sm:p-6">
-        <div className="mb-4 flex items-center gap-2 sm:mb-5">
-          <Briefcase className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
-          <h2 className="text-sm font-semibold text-foreground sm:text-base">
-            Account Overview
-          </h2>
+    <div className="glass-card overflow-hidden">
+      {/* Hero Section */}
+      <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+        <p className="text-xs tracking-wide text-muted sm:text-sm">
+          Total Account Value
+        </p>
+        <p className="mt-0.5 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          {formatCurrency(displayValue)}
+        </p>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          {displayIsPositive ? (
+            <TrendingUp className="h-3.5 w-3.5 text-gain" />
+          ) : (
+            <TrendingDown className="h-3.5 w-3.5 text-loss" />
+          )}
+          <span
+            className={`text-sm font-medium ${
+              displayIsPositive ? "text-gain" : "text-loss"
+            }`}
+          >
+            {displayChange >= 0 ? "+" : ""}
+            {formatCurrency(displayChange)} (
+            {formatPercent(displayChangePercent)})
+          </span>
+          <span className="text-sm text-muted">{displayLabel}</span>
         </div>
+      </div>
 
-        {/* Total Value - Hero */}
-        <div className="mb-4 sm:mb-5">
-          <p className="text-xs text-muted sm:text-sm">Total Account Value</p>
-          <p className="text-2xl font-bold text-foreground sm:text-3xl">
-            {formatCurrency(totalValue)}
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            {isDayPositive ? (
-              <TrendingUp className="h-3 w-3 text-gain sm:h-3.5 sm:w-3.5" />
-            ) : (
-              <TrendingDown className="h-3 w-3 text-loss sm:h-3.5 sm:w-3.5" />
-            )}
-            <span
-              className={`text-xs font-medium sm:text-sm ${
-                isDayPositive ? "text-gain" : "text-loss"
-              }`}
-            >
-              {formatCurrency(totalDayChange)}
-            </span>
-            <span
-              className={`text-xs sm:text-sm ${
-                isDayPositive ? "text-gain" : "text-loss"
-              }`}
-            >
-              ({formatPercent(totalDayChangePercent)}) Today
-            </span>
+      {/* Chart — edge-to-edge */}
+      <div className="mt-3 px-1">
+        <FundValueChart
+          data={points}
+          isPositive={chartIsPositive}
+          onCrosshairMove={handleCrosshairMove}
+        />
+      </div>
+
+      {/* Period Selector */}
+      <div className="flex items-center gap-1.5 px-5 pb-1 pt-1 sm:gap-2 sm:px-6">
+        {PERIODS.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => setPeriod(p.value)}
+            className={`rounded-full px-3.5 py-1 text-xs font-medium transition-all sm:px-4 sm:py-1.5 sm:text-sm ${
+              period === p.value
+                ? "bg-gold/20 text-gold"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Stats Row */}
+      <div className="mt-2 border-t border-card-border/40 px-5 py-3.5 sm:px-6 sm:py-4">
+        <div className="grid grid-cols-4 gap-3 sm:gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              NAV/Unit
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
+              {nav > 0 ? `$${nav.toFixed(2)}` : "—"}
+            </p>
           </div>
-        </div>
-
-        {/* Breakdown Table */}
-        <div className="space-y-0 divide-y divide-card-border/40">
-          {/* Investments */}
-          <div className="flex items-center justify-between py-2.5 sm:py-3">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gold/10 sm:h-8 sm:w-8">
-                <BarChart3 className="h-3.5 w-3.5 text-gold sm:h-4 sm:w-4" />
-              </div>
-              <span className="text-xs text-muted sm:text-sm">Investments</span>
-            </div>
-            <span className="text-sm font-medium text-foreground sm:text-base">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Investments
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
               {formatCurrency(investmentsValue)}
-            </span>
+            </p>
           </div>
-
-          {/* Cash & Equivalents */}
-          <div className="flex items-center justify-between py-2.5 sm:py-3">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gold/10 sm:h-8 sm:w-8">
-                <Banknote className="h-3.5 w-3.5 text-gold sm:h-4 sm:w-4" />
-              </div>
-              <span className="text-xs text-muted sm:text-sm">Cash &amp; Equivalents</span>
-            </div>
-            <span className="text-sm font-medium text-foreground sm:text-base">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Cash
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
               {formatCurrency(cashBalance)}
-            </span>
+            </p>
           </div>
-
-          {/* Cost Basis */}
-          <div className="flex items-center justify-between py-2.5 sm:py-3">
-            <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
-            <span className="text-sm font-medium text-foreground sm:text-base">
-              {formatCurrency(totalCost)}
-            </span>
-          </div>
-
-          {/* Total Gain/Loss */}
-          <div className="flex items-center justify-between py-2.5 sm:py-3">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div
-                className={`flex h-7 w-7 items-center justify-center rounded-md sm:h-8 sm:w-8 ${
-                  isPositive ? "bg-gain/10" : "bg-loss/10"
-                }`}
-              >
-                {isPositive ? (
-                  <TrendingUp className="h-3.5 w-3.5 text-gain sm:h-4 sm:w-4" />
-                ) : (
-                  <TrendingDown className="h-3.5 w-3.5 text-loss sm:h-4 sm:w-4" />
-                )}
-              </div>
-              <span className="text-xs text-muted sm:text-sm">
-                Total Gain/Loss
-              </span>
-            </div>
-            <div className="text-right">
-              <span
-                className={`text-sm font-semibold sm:text-base ${
-                  isPositive ? "text-gain" : "text-loss"
-                }`}
-              >
-                {formatCurrency(totalGainLoss)}
-              </span>
-              <span
-                className={`ml-2 text-xs sm:text-sm ${
-                  isPositive ? "text-gain" : "text-loss"
-                }`}
-              >
-                ({formatPercent(totalGainLossPercent)})
-              </span>
-            </div>
-          </div>
-
-          {/* Holdings Count */}
-          <div className="flex items-center justify-between py-2.5 sm:py-3">
-            <span className="text-xs text-muted sm:text-sm">
-              Active Holdings
-            </span>
-            <span className="text-sm font-medium text-foreground sm:text-base">
-              {holdingsCount} stocks
-            </span>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Total Return
+            </p>
+            <p
+              className={`mt-0.5 text-sm font-semibold sm:text-base ${
+                isPositive ? "text-gain" : "text-loss"
+              }`}
+            >
+              {formatPercent(totalGainLossPercent)}
+            </p>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function formatDateLabel(timeStr: string): string {
+  // timeStr is "YYYY-MM-DD"
+  const [year, month, day] = timeStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
