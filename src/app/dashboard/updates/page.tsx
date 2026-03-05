@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
-import { Loader2, Pin, Bell, TrendingUp, FileText, Megaphone } from "lucide-react";
+import {
+  Loader2,
+  Pin,
+  Bell,
+  TrendingUp,
+  FileText,
+  Megaphone,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import type { FundUpdate } from "@/types/database";
 import { useUnreadUpdates } from "@/hooks/useUnreadUpdates";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const PREVIEW_LENGTH = 120; // characters for collapsed preview
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor(
@@ -26,6 +37,14 @@ function timeAgo(dateStr: string): string {
   });
 }
 
+function truncateContent(content: string, maxLen: number): string {
+  if (content.length <= maxLen) return content;
+  // Cut at last space before maxLen to avoid mid-word break
+  const trimmed = content.substring(0, maxLen);
+  const lastSpace = trimmed.lastIndexOf(" ");
+  return (lastSpace > 0 ? trimmed.substring(0, lastSpace) : trimmed) + "...";
+}
+
 const categoryConfig: Record<
   string,
   { label: string; class: string; icon: typeof Bell }
@@ -42,6 +61,96 @@ const categoryConfig: Record<
     icon: FileText,
   },
 };
+
+function UpdateCard({ update }: { update: FundUpdate }) {
+  const [expanded, setExpanded] = useState(false);
+  const cat = categoryConfig[update.category] || categoryConfig.announcement;
+  const CatIcon = cat.icon;
+  const isLong = update.content.length > PREVIEW_LENGTH;
+
+  return (
+    <div
+      className={`glass-card p-5 sm:p-6 transition-all duration-200 ${
+        isLong ? "cursor-pointer hover:border-gold/20" : ""
+      }`}
+      onClick={() => isLong && setExpanded(!expanded)}
+    >
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {update.is_pinned && (
+          <span className="flex items-center gap-1 rounded-full bg-gold/10 px-2.5 py-0.5 text-xs font-medium text-gold">
+            <Pin className="h-3 w-3" />
+            Pinned
+          </span>
+        )}
+        <span
+          className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cat.class}`}
+        >
+          <CatIcon className="h-3 w-3" />
+          {cat.label}
+        </span>
+        <span className="text-xs text-muted">
+          {timeAgo(update.created_at)}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-base font-semibold text-foreground sm:text-lg">
+          {update.title}
+        </h2>
+        {isLong && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
+            className="mt-0.5 flex-shrink-0 text-muted hover:text-foreground transition-colors"
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            {expanded ? (
+              <ChevronUp className="h-5 w-5" />
+            ) : (
+              <ChevronDown className="h-5 w-5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          expanded ? "max-h-[2000px] opacity-100" : isLong ? "max-h-20 opacity-100" : "max-h-[2000px] opacity-100"
+        }`}
+      >
+        <p className="mt-2 text-sm leading-relaxed text-muted whitespace-pre-wrap">
+          {expanded || !isLong
+            ? update.content
+            : truncateContent(update.content, PREVIEW_LENGTH)}
+        </p>
+      </div>
+
+      {isLong && !expanded && (
+        <p className="mt-2 text-xs font-medium text-gold/70">
+          Tap to read more
+        </p>
+      )}
+
+      <div className="mt-4 flex items-center justify-between">
+        <span className="text-xs text-muted">— {update.author_name}</span>
+        {expanded && (
+          <span className="text-xs text-muted">
+            {new Date(update.created_at).toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function UpdatesPage() {
   const { markAsRead } = useUnreadUpdates();
@@ -85,43 +194,9 @@ export default function UpdatesPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {updates.map((update) => {
-            const cat = categoryConfig[update.category] || categoryConfig.announcement;
-            const CatIcon = cat.icon;
-
-            return (
-              <div key={update.id} className="glass-card p-5 sm:p-6">
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  {update.is_pinned && (
-                    <span className="flex items-center gap-1 rounded-full bg-gold/10 px-2.5 py-0.5 text-xs font-medium text-gold">
-                      <Pin className="h-3 w-3" />
-                      Pinned
-                    </span>
-                  )}
-                  <span
-                    className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cat.class}`}
-                  >
-                    <CatIcon className="h-3 w-3" />
-                    {cat.label}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {timeAgo(update.created_at)}
-                  </span>
-                </div>
-
-                <h2 className="text-base font-semibold text-foreground sm:text-lg">
-                  {update.title}
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted whitespace-pre-wrap">
-                  {update.content}
-                </p>
-
-                <div className="mt-4 text-xs text-muted">
-                  — {update.author_name}
-                </div>
-              </div>
-            );
-          })}
+          {updates.map((update) => (
+            <UpdateCard key={update.id} update={update} />
+          ))}
         </div>
       )}
     </div>

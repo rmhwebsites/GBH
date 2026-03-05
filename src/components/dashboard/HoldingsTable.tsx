@@ -93,7 +93,7 @@ export function HoldingsTable({ holdings }: Props) {
                         </span>
                       </div>
                       <span
-                        className={`hidden text-xs sm:block ${
+                        className={`text-[10px] sm:text-xs ${
                           isDayPositive ? "text-gain" : "text-loss"
                         }`}
                       >
@@ -120,7 +120,7 @@ export function HoldingsTable({ holdings }: Props) {
                         {formatPercent(holding.gainLossPercent)}
                       </span>
                       <span
-                        className={`hidden text-xs sm:block ${
+                        className={`text-[10px] sm:text-xs ${
                           isTotalPositive ? "text-gain" : "text-loss"
                         }`}
                       >
