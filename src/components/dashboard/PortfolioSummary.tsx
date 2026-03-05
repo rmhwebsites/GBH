@@ -253,12 +253,28 @@ export function PortfolioSummary({
 
 function formatDateLabel(timeStr: string | null): string {
   if (!timeStr) return "Today";
-  // timeStr is "YYYY-MM-DD"
-  const date = new Date(timeStr + "T00:00:00");
+
+  // Check if this is today's date in EST
+  const todayEST = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+  if (timeStr === todayEST) return "Today";
+
+  // Parse YYYY-MM-DD components directly to avoid timezone shifting
+  const [yearStr, monthStr, dayStr] = timeStr.split("-");
+  const year = parseInt(yearStr);
+  const month = parseInt(monthStr) - 1; // JS months are 0-indexed
+  const day = parseInt(dayStr);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return "Today";
+
+  // Construct as UTC to avoid any local timezone offset shifting the day
+  const date = new Date(Date.UTC(year, month, day));
   if (isNaN(date.getTime())) return "Today";
+
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC", // Display in UTC since we constructed in UTC
   });
 }

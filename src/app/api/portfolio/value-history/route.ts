@@ -61,11 +61,13 @@ export async function GET(request: NextRequest) {
     const holdings = holdingsRes.data || [];
 
     // Build points array from history
+    // Normalize snapshot_date to pure YYYY-MM-DD (strip any time component)
     const points: { time: string; value: number }[] = [];
 
     for (const nav of navHistory) {
+      const dateStr = String(nav.snapshot_date).split("T")[0];
       points.push({
-        time: nav.snapshot_date,
+        time: dateStr,
         value: nav.total_value,
       });
     }

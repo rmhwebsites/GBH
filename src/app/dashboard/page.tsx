@@ -5,7 +5,7 @@ import { PortfolioSummary } from "@/components/dashboard/PortfolioSummary";
 import { HoldingsTable } from "@/components/dashboard/HoldingsTable";
 import { AllocationChart } from "@/components/charts/AllocationChart";
 import { SectorChart } from "@/components/charts/SectorChart";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { PortfolioSummary as PortfolioSummaryType } from "@/types/database";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -14,7 +14,6 @@ export default function DashboardPage() {
   const {
     data: portfolio,
     isLoading,
-    mutate,
   } = useSWR<PortfolioSummaryType>("/api/portfolio", fetcher, {
     refreshInterval: 5 * 60 * 1000, // Refresh every 5 minutes
   });
@@ -33,20 +32,11 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Portfolio</h1>
-          <p className="mt-1 text-sm text-muted">
-            Live market data refreshes every 5 minutes
-          </p>
-        </div>
-        <button
-          onClick={() => mutate()}
-          className="flex items-center gap-2 rounded-lg border border-card-border bg-card-glass px-4 py-2 text-sm text-muted transition-colors hover:border-gold/30 hover:text-gold"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Portfolio</h1>
+        <p className="mt-1 text-sm text-muted">
+          Live market data refreshes every 5 minutes
+        </p>
       </div>
 
       {/* Summary Cards */}

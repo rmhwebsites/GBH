@@ -25,22 +25,22 @@ export function HoldingsTable({ holdings }: Props) {
 
   return (
     <div className="glass-card overflow-hidden">
-      <div className="border-b border-card-border px-6 py-4">
+      <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="text-lg font-semibold text-foreground">Holdings</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full" style={{ minWidth: "800px" }}>
+        <table className="w-full" style={{ minWidth: "480px" }}>
           <thead>
-            <tr className="border-b border-card-border text-left text-xs uppercase tracking-wider text-muted">
-              <th className="sticky left-0 z-10 bg-card-glass px-6 py-3 font-medium backdrop-blur-md">
+            <tr className="border-b border-card-border text-left text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              <th className="sticky left-0 z-10 bg-[rgba(0,13,26,0.97)] px-3 py-2.5 font-medium backdrop-blur-xl sm:px-6 sm:py-3">
                 Stock
               </th>
-              <th className="px-4 py-3 font-medium text-right">Price</th>
-              <th className="px-4 py-3 font-medium text-right">Day Change</th>
-              <th className="px-4 py-3 font-medium text-right">Shares</th>
-              <th className="px-4 py-3 font-medium text-right">Value</th>
-              <th className="px-4 py-3 font-medium text-right">Total Return</th>
-              <th className="px-4 py-3 font-medium text-right">Weight</th>
+              <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Price</th>
+              <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Day Chg</th>
+              <th className="hidden px-2 py-2.5 font-medium text-right sm:table-cell sm:px-4 sm:py-3">Shares</th>
+              <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Value</th>
+              <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Return</th>
+              <th className="hidden px-2 py-2.5 font-medium text-right md:table-cell sm:px-4 sm:py-3">Weight</th>
             </tr>
           </thead>
           <tbody>
@@ -53,18 +53,18 @@ export function HoldingsTable({ holdings }: Props) {
                   className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-white/[0.06]"
                 >
                   {/* Stock — sticky on scroll */}
-                  <td className="sticky left-0 z-10 bg-card-glass px-6 py-4 backdrop-blur-md">
+                  <td className="sticky left-0 z-10 bg-[rgba(0,13,26,0.97)] px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
                     <Link
                       href={`/dashboard/stock/${holding.ticker}`}
                       className="block"
                     >
-                      <div className="flex items-center gap-3">
-                        <StockLogo ticker={holding.ticker} size={36} />
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <StockLogo ticker={holding.ticker} size={28} />
                         <div>
-                          <p className="font-medium text-foreground transition-colors group-hover:text-white">
+                          <p className="text-xs font-medium text-foreground transition-colors group-hover:text-white sm:text-sm">
                             {holding.ticker}
                           </p>
-                          <p className="max-w-[140px] truncate text-xs text-muted transition-colors group-hover:text-white/60">
+                          <p className="hidden max-w-[100px] truncate text-[10px] text-muted transition-colors group-hover:text-white/60 sm:block sm:max-w-[140px] sm:text-xs">
                             {holding.company_name}
                           </p>
                         </div>
@@ -72,64 +72,64 @@ export function HoldingsTable({ holdings }: Props) {
                     </Link>
                   </td>
                   {/* Current stock price */}
-                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
+                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground transition-colors group-hover:text-white sm:px-4 sm:py-4 sm:text-sm">
                     {formatCurrency(holding.quote.price)}
                   </td>
                   {/* Day Change — per-share $ and % */}
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-2 py-3 text-right sm:px-4 sm:py-4">
                     <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5 sm:gap-1">
                         {isDayPositive ? (
-                          <TrendingUp className="h-3 w-3 text-gain" />
+                          <TrendingUp className="hidden h-3 w-3 text-gain sm:block" />
                         ) : (
-                          <TrendingDown className="h-3 w-3 text-loss" />
+                          <TrendingDown className="hidden h-3 w-3 text-loss sm:block" />
                         )}
                         <span
-                          className={`text-sm font-medium ${
+                          className={`text-[11px] font-medium sm:text-sm ${
                             isDayPositive ? "text-gain" : "text-loss"
                           }`}
                         >
-                          {formatCurrency(holding.quote.change)}
+                          {formatPercent(holding.quote.changePercent)}
                         </span>
                       </div>
                       <span
-                        className={`text-xs ${
+                        className={`hidden text-xs sm:block ${
                           isDayPositive ? "text-gain" : "text-loss"
                         }`}
                       >
-                        {formatPercent(holding.quote.changePercent)}
+                        {formatCurrency(holding.quote.change)}
                       </span>
                     </div>
                   </td>
-                  {/* Shares */}
-                  <td className="px-4 py-4 text-right text-sm text-muted transition-colors group-hover:text-white/60">
+                  {/* Shares — hidden on mobile */}
+                  <td className="hidden px-2 py-3 text-right text-sm text-muted transition-colors group-hover:text-white/60 sm:table-cell sm:px-4 sm:py-4">
                     {formatNumber(holding.shares)}
                   </td>
                   {/* Position Value */}
-                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
+                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground transition-colors group-hover:text-white sm:px-4 sm:py-4 sm:text-sm">
                     {formatCurrency(holding.currentValue)}
                   </td>
-                  {/* Total Return — all-time position $ and % */}
-                  <td className="px-4 py-4 text-right">
+                  {/* Total Return — all-time position % ($ hidden on mobile) */}
+                  <td className="px-2 py-3 text-right sm:px-4 sm:py-4">
                     <div className="flex flex-col items-end">
                       <span
-                        className={`text-sm font-medium ${
-                          isTotalPositive ? "text-gain" : "text-loss"
-                        }`}
-                      >
-                        {formatCurrency(holding.gainLoss)}
-                      </span>
-                      <span
-                        className={`text-xs ${
+                        className={`text-[11px] font-medium sm:text-sm ${
                           isTotalPositive ? "text-gain" : "text-loss"
                         }`}
                       >
                         {formatPercent(holding.gainLossPercent)}
                       </span>
+                      <span
+                        className={`hidden text-xs sm:block ${
+                          isTotalPositive ? "text-gain" : "text-loss"
+                        }`}
+                      >
+                        {formatCurrency(holding.gainLoss)}
+                      </span>
                     </div>
                   </td>
-                  {/* Weight */}
-                  <td className="px-4 py-4 text-right">
+                  {/* Weight — hidden on mobile */}
+                  <td className="hidden px-2 py-3 text-right md:table-cell sm:px-4 sm:py-4">
                     <div className="flex items-center justify-end gap-2">
                       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-card-border">
                         <div

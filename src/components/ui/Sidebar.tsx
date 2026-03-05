@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
+import { useUnreadUpdates } from "@/hooks/useUnreadUpdates";
 
 const memberLinks = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
@@ -40,6 +41,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { hasUnread, markAsRead } = useUnreadUpdates();
 
   return (
     <>
@@ -90,11 +92,17 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
             const isActive =
               pathname === link.href ||
               (link.href !== "/dashboard" && pathname.startsWith(link.href));
+            const isUpdatesLink = link.href === "/dashboard/updates";
+            const showBadge = isUpdatesLink && hasUnread && !isActive;
+
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => {
+                  setMobileOpen(false);
+                  if (isUpdatesLink) markAsRead();
+                }}
                 className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-accent/10 text-accent"
@@ -103,6 +111,12 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 <Icon className="h-4 w-4" />
                 {link.label}
+                {showBadge && (
+                  <span className="ml-auto flex h-2 w-2">
+                    <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-gold opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-gold" />
+                  </span>
+                )}
               </Link>
             );
           })}

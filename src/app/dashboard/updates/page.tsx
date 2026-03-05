@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import useSWR from "swr";
 import { Loader2, Pin, Bell, TrendingUp, FileText, Megaphone } from "lucide-react";
 import type { FundUpdate } from "@/types/database";
+import { useUnreadUpdates } from "@/hooks/useUnreadUpdates";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -42,11 +44,17 @@ const categoryConfig: Record<
 };
 
 export default function UpdatesPage() {
+  const { markAsRead } = useUnreadUpdates();
   const { data, isLoading } = useSWR<{ updates: FundUpdate[] }>(
     "/api/updates",
     fetcher,
     { refreshInterval: 5 * 60 * 1000 }
   );
+
+  // Mark updates as read when user visits this page
+  useEffect(() => {
+    markAsRead();
+  }, [markAsRead]);
 
   if (isLoading) {
     return (

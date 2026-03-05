@@ -199,7 +199,10 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <div className="flex items-center justify-between py-2 sm:py-2.5">
-              <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
+              <div className="flex items-center gap-2">
+                <Layers className="h-3.5 w-3.5 text-gold" />
+                <span className="text-xs text-muted sm:text-sm">Cost Basis</span>
+              </div>
               <span className="text-xs font-medium text-foreground sm:text-sm">
                 {formatCurrency(totalCost)}
               </span>
