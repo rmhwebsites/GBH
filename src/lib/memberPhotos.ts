@@ -27,6 +27,14 @@ const MEMBER_PHOTOS: Record<string, string> = {
     "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68bf5ecdc0e592144a71dcaa__MG_8416.JPG",
   "Henry Smith":
     "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68ade680bc65af392b8582c6_IMG_1735.JPG",
+  "Theodore Moores":
+    "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68bf36f043058dc7f7b46918_IMG_4956.JPG",
+  "Jonathan Jarrett":
+    "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68bf39ff066fb60c6f8f2619_20241014_Corsair%20Society%20Headshots_044.jpeg",
+  "James Oxley":
+    "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68bf38678d7e576b112e9b8c_vantine_hi_res_2742273.JPG",
+  "William Kimbro":
+    "https://cdn.prod.website-files.com/67e43b853b67f5c129d0e544/68ad217946629c5e943f24de_IMG_0031.JPG",
 };
 
 /**
