@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { sendInvestmentAlert } from "@/lib/emails";
 
 export async function POST(request: NextRequest) {
   try {
@@ -126,23 +125,6 @@ export async function POST(request: NextRequest) {
         fund_inception_date:
           body.investment_date || new Date().toISOString().split("T")[0],
       });
-    }
-
-    // Send investment alert email to the member (fire-and-forget)
-    try {
-      sendInvestmentAlert(
-        {
-          memberName: body.member_name,
-          amount: amount,
-          unitsGranted: unitsToGrant,
-          navPerUnit: navPerUnit,
-          investmentDate:
-            body.investment_date || new Date().toISOString().split("T")[0],
-        },
-        body.member_email
-      ).catch((err) => console.error("Investment alert email error:", err));
-    } catch (emailErr) {
-      console.error("Failed to queue investment alert email:", emailErr);
     }
 
     return NextResponse.json(
