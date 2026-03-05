@@ -46,7 +46,8 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
       {/* Mobile menu button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 rounded-lg bg-card p-2 text-muted lg:hidden"
+        className="fixed left-4 z-50 rounded-lg bg-card p-2 text-muted lg:hidden"
+        style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -61,9 +62,10 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-card-border bg-sidebar transition-transform lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-50 flex h-full w-64 flex-col border-r border-card-border bg-background transition-transform lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         {/* Logo */}
         <div className="flex items-center justify-between border-b border-card-border px-4 py-4">
