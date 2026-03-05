@@ -34,7 +34,7 @@ export function HoldingsTable({ holdings }: Props) {
             <tr className="border-b border-card-border text-left text-xs uppercase tracking-wider text-muted">
               <th className="px-6 py-3 font-medium">Stock</th>
               <th className="px-4 py-3 font-medium text-right">Price</th>
-              <th className="px-4 py-3 font-medium text-right">Change</th>
+              <th className="px-4 py-3 font-medium text-right">Day Change</th>
               <th className="hidden px-4 py-3 font-medium text-right md:table-cell">
                 Shares
               </th>
@@ -78,14 +78,23 @@ export function HoldingsTable({ holdings }: Props) {
                     {formatCurrency(holding.quote.price)}
                   </td>
                   <td className="px-4 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {isPositive ? (
-                        <TrendingUp className="h-3 w-3 text-gain" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 text-loss" />
-                      )}
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-center gap-1">
+                        {isPositive ? (
+                          <TrendingUp className="h-3 w-3 text-gain" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-loss" />
+                        )}
+                        <span
+                          className={`text-sm font-medium ${
+                            isPositive ? "text-gain" : "text-loss"
+                          }`}
+                        >
+                          {formatCurrency(holding.dayChange)}
+                        </span>
+                      </div>
                       <span
-                        className={`text-sm font-medium ${
+                        className={`text-xs ${
                           isPositive ? "text-gain" : "text-loss"
                         }`}
                       >

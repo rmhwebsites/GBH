@@ -86,6 +86,8 @@ export interface HoldingWithQuote extends PortfolioHolding {
   currentValue: number;
   gainLoss: number;
   gainLossPercent: number;
+  dayChange: number;
+  dayChangePercent: number;
   weight: number;
 }
 
@@ -94,6 +96,8 @@ export interface PortfolioSummary {
   totalCost: number;
   totalGainLoss: number;
   totalGainLossPercent: number;
+  totalDayChange: number;
+  totalDayChangePercent: number;
   holdings: HoldingWithQuote[];
   cashBalance: number;
 }

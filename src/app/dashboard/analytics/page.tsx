@@ -95,7 +95,10 @@ export default function AnalyticsPage() {
   const investmentsValue = totalValue - cashBalance;
   const totalCost = portfolio?.totalCost || 0;
   const totalGainLoss = portfolio?.totalGainLoss || 0;
+  const totalDayChange = portfolio?.totalDayChange || 0;
+  const totalDayChangePercent = portfolio?.totalDayChangePercent || 0;
   const isPositive = totalGainLoss >= 0;
+  const isDayPositive = totalDayChange >= 0;
   const cashWeight = totalValue > 0 ? (cashBalance / totalValue) * 100 : 0;
   const investmentsWeight = totalValue > 0 ? (investmentsValue / totalValue) * 100 : 0;
   const smallestPosition = holdings.length > 0
@@ -131,6 +134,27 @@ export default function AnalyticsPage() {
             <p className="text-2xl font-bold text-foreground sm:text-3xl">
               {formatCurrency(totalValue)}
             </p>
+            <div className="mt-1 flex items-center gap-2">
+              {isDayPositive ? (
+                <TrendingUp className="h-3 w-3 text-gain" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-loss" />
+              )}
+              <span
+                className={`text-xs font-medium ${
+                  isDayPositive ? "text-gain" : "text-loss"
+                }`}
+              >
+                {formatCurrency(totalDayChange)}
+              </span>
+              <span
+                className={`text-xs ${
+                  isDayPositive ? "text-gain" : "text-loss"
+                }`}
+              >
+                ({formatPercent(totalDayChangePercent)}) Today
+              </span>
+            </div>
           </div>
 
           {/* Breakdown */}

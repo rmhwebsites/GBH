@@ -16,6 +16,7 @@ export function calculatePortfolioSummary(
 
   let totalValue = 0;
   let totalCost = 0;
+  let totalDayChange = 0;
 
   const enrichedHoldings: HoldingWithQuote[] = holdings
     .filter((h) => h.is_active && h.ticker !== "CASH")
@@ -26,8 +27,13 @@ export function calculatePortfolioSummary(
       const gainLoss = currentValue - costBasis;
       const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
 
+      // Day change: dollar amount and percent from quote
+      const dayChange = quote ? holding.shares * quote.change : 0;
+      const dayChangePercent = quote?.changePercent || 0;
+
       totalValue += currentValue;
       totalCost += costBasis;
+      totalDayChange += dayChange;
 
       return {
         ...holding,
@@ -35,6 +41,8 @@ export function calculatePortfolioSummary(
         currentValue,
         gainLoss,
         gainLossPercent,
+        dayChange,
+        dayChangePercent,
         weight: 0, // calculated below
       };
     });
@@ -46,6 +54,14 @@ export function calculatePortfolioSummary(
 
   // Total AUM includes cash
   const totalAUM = totalValue + cashBalance;
+
+  // Geometric day change % — use previous day portfolio value as denominator
+  // Previous value = current stock value - day change + cash (cash doesn't change intraday)
+  const previousPortfolioValue = totalAUM - totalDayChange;
+  const totalDayChangePercent =
+    previousPortfolioValue > 0
+      ? (totalDayChange / previousPortfolioValue) * 100
+      : 0;
 
   // Calculate weights based on total AUM (including cash in denominator)
   enrichedHoldings.forEach((h) => {
@@ -60,6 +76,8 @@ export function calculatePortfolioSummary(
     totalCost,
     totalGainLoss,
     totalGainLossPercent,
+    totalDayChange,
+    totalDayChangePercent,
     holdings: enrichedHoldings,
     cashBalance,
   };

@@ -25,6 +25,8 @@ export async function GET() {
         totalCost: 0,
         totalGainLoss: 0,
         totalGainLossPercent: 0,
+        totalDayChange: 0,
+        totalDayChangePercent: 0,
         holdings: [],
         cashBalance: 0,
       });

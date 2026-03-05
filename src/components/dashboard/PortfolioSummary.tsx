@@ -14,6 +14,8 @@ interface Props {
   totalCost: number;
   totalGainLoss: number;
   totalGainLossPercent: number;
+  totalDayChange: number;
+  totalDayChangePercent: number;
   holdingsCount: number;
   cashBalance?: number;
 }
@@ -23,10 +25,13 @@ export function PortfolioSummary({
   totalCost,
   totalGainLoss,
   totalGainLossPercent,
+  totalDayChange,
+  totalDayChangePercent,
   holdingsCount,
   cashBalance = 0,
 }: Props) {
   const isPositive = totalGainLoss >= 0;
+  const isDayPositive = totalDayChange >= 0;
   const investmentsValue = totalValue - cashBalance;
 
   return (
@@ -46,6 +51,27 @@ export function PortfolioSummary({
           <p className="text-2xl font-bold text-foreground sm:text-3xl">
             {formatCurrency(totalValue)}
           </p>
+          <div className="mt-1 flex items-center gap-2">
+            {isDayPositive ? (
+              <TrendingUp className="h-3 w-3 text-gain sm:h-3.5 sm:w-3.5" />
+            ) : (
+              <TrendingDown className="h-3 w-3 text-loss sm:h-3.5 sm:w-3.5" />
+            )}
+            <span
+              className={`text-xs font-medium sm:text-sm ${
+                isDayPositive ? "text-gain" : "text-loss"
+              }`}
+            >
+              {formatCurrency(totalDayChange)}
+            </span>
+            <span
+              className={`text-xs sm:text-sm ${
+                isDayPositive ? "text-gain" : "text-loss"
+              }`}
+            >
+              ({formatPercent(totalDayChangePercent)}) Today
+            </span>
+          </div>
         </div>
 
         {/* Breakdown Table */}
