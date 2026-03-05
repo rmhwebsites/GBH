@@ -14,7 +14,12 @@ import {
   Briefcase,
   Scale,
   Layers,
+  Shield,
+  ArrowDown,
+  Percent,
+  Calendar,
 } from "lucide-react";
+import type { RiskMetrics } from "@/lib/risk";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { SectorChart } from "@/components/charts/SectorChart";
 import type { PortfolioSummary } from "@/types/database";
@@ -52,6 +57,12 @@ export default function AnalyticsPage() {
     `/api/portfolio/performance?period=${period}`,
     fetcher,
     { refreshInterval: 60 * 60 * 1000 } // refresh every hour
+  );
+
+  const { data: riskData } = useSWR<{ metrics: RiskMetrics | null }>(
+    "/api/portfolio/risk-metrics",
+    fetcher,
+    { refreshInterval: 60 * 60 * 1000 }
   );
 
   const isLoading = portfolioLoading || perfLoading;
@@ -414,6 +425,169 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Risk Metrics */}
+      {riskData?.metrics && (
+        <div className="glass-card p-4 sm:p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Risk Metrics
+            </h2>
+          </div>
+          <p className="mb-4 text-xs text-muted">
+            Based on {riskData.metrics.totalDays} daily NAV observations. Risk-free rate: 5%.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {/* Sharpe Ratio */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Target className="h-3.5 w-3.5 text-muted" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Sharpe Ratio
+                </p>
+              </div>
+              <p
+                className={`text-lg font-semibold sm:text-xl ${
+                  riskData.metrics.sharpeRatio > 1
+                    ? "text-gain"
+                    : riskData.metrics.sharpeRatio >= 0
+                      ? "text-gold"
+                      : "text-loss"
+                }`}
+              >
+                {riskData.metrics.sharpeRatio.toFixed(2)}
+              </p>
+            </div>
+
+            {/* Sortino Ratio */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-muted" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Sortino Ratio
+                </p>
+              </div>
+              <p
+                className={`text-lg font-semibold sm:text-xl ${
+                  riskData.metrics.sortinoRatio > 1
+                    ? "text-gain"
+                    : riskData.metrics.sortinoRatio >= 0
+                      ? "text-gold"
+                      : "text-loss"
+                }`}
+              >
+                {riskData.metrics.sortinoRatio.toFixed(2)}
+              </p>
+            </div>
+
+            {/* Volatility */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5 text-muted" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Volatility (Ann.)
+                </p>
+              </div>
+              <p className="text-lg font-semibold text-foreground sm:text-xl">
+                {riskData.metrics.volatility.toFixed(1)}%
+              </p>
+            </div>
+
+            {/* Max Drawdown */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <ArrowDown className="h-3.5 w-3.5 text-loss" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Max Drawdown
+                </p>
+              </div>
+              <p className="text-lg font-semibold text-loss sm:text-xl">
+                -{riskData.metrics.maxDrawdown.toFixed(1)}%
+              </p>
+            </div>
+
+            {/* Win Rate */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Percent className="h-3.5 w-3.5 text-muted" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Win Rate
+                </p>
+              </div>
+              <p
+                className={`text-lg font-semibold sm:text-xl ${
+                  riskData.metrics.winRate >= 50 ? "text-gain" : "text-loss"
+                }`}
+              >
+                {riskData.metrics.winRate.toFixed(1)}%
+              </p>
+            </div>
+
+            {/* Annualized Return */}
+            <div className="rounded-lg bg-card-glass/50 p-3 sm:p-4">
+              <div className="mb-1 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-muted" />
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  Ann. Return
+                </p>
+              </div>
+              <p
+                className={`text-lg font-semibold sm:text-xl ${
+                  riskData.metrics.annualizedReturn >= 0
+                    ? "text-gain"
+                    : "text-loss"
+                }`}
+              >
+                {riskData.metrics.annualizedReturn >= 0 ? "+" : ""}
+                {riskData.metrics.annualizedReturn.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+
+          {/* Best / Worst Day Details */}
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-lg bg-gain/5 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-gain" />
+                <div>
+                  <p className="text-xs font-medium text-gain">Best Day</p>
+                  <p className="flex items-center gap-1 text-[10px] text-muted">
+                    <Calendar className="h-2.5 w-2.5" />
+                    {new Date(riskData.metrics.bestDay.date + "T00:00:00").toLocaleDateString(
+                      "en-US",
+                      { month: "short", day: "numeric", year: "numeric" }
+                    )}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-gain">
+                +{riskData.metrics.bestDay.return.toFixed(2)}%
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg bg-loss/5 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-loss" />
+                <div>
+                  <p className="text-xs font-medium text-loss">Worst Day</p>
+                  <p className="flex items-center gap-1 text-[10px] text-muted">
+                    <Calendar className="h-2.5 w-2.5" />
+                    {new Date(riskData.metrics.worstDay.date + "T00:00:00").toLocaleDateString(
+                      "en-US",
+                      { month: "short", day: "numeric", year: "numeric" }
+                    )}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-loss">
+                {riskData.metrics.worstDay.return.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top & Bottom Performers */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

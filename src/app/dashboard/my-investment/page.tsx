@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import useSWR from "swr";
 import { useAuth } from "@memberstack/react";
 import {
@@ -10,25 +11,84 @@ import {
   Coins,
   Calendar,
   Activity,
+  Download,
+  ArrowUp,
 } from "lucide-react";
 import {
   formatCurrency,
   formatPercent,
   formatNumber,
 } from "@/lib/calculations";
-import type { MemberDashboardData } from "@/types/database";
+import { NavHistoryChart } from "@/components/charts/NavHistoryChart";
+import type { MemberDashboardData, NavSnapshot, PortfolioSummary } from "@/types/database";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const NAV_PERIODS = [
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "1Y", days: 365 },
+  { label: "All", days: 9999 },
+] as const;
 
 export default function MyInvestmentPage() {
   const { userId } = useAuth();
   const memberId = userId || "";
+
+  const [navPeriod, setNavPeriod] = useState(90);
+  const [hoverNav, setHoverNav] = useState<{
+    value: number;
+    date: string;
+  } | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const { data, isLoading } = useSWR<MemberDashboardData>(
     memberId ? `/api/member/${memberId}` : null,
     fetcher,
     { refreshInterval: 5 * 60 * 1000 }
   );
+
+  const { data: navData } = useSWR<{ history: NavSnapshot[] }>(
+    `/api/portfolio/nav-history?days=${navPeriod}`,
+    fetcher,
+    { refreshInterval: 60 * 60 * 1000 }
+  );
+
+  // Optional portfolio data for statement PDF
+  const { data: portfolio } = useSWR<PortfolioSummary>(
+    "/api/portfolio",
+    fetcher,
+    { refreshInterval: 60 * 60 * 1000 }
+  );
+
+  const handleCrosshairMove = useCallback(
+    (value: number | null, time: string | null) => {
+      if (value !== null && time !== null) {
+        setHoverNav({ value, date: time });
+      } else {
+        setHoverNav(null);
+      }
+    },
+    []
+  );
+
+  const handleDownloadStatement = async () => {
+    if (!data) return;
+    setDownloading(true);
+    try {
+      const { generateStatement } = await import("@/lib/statement");
+      generateStatement({
+        memberName:
+          data.investments[0]?.member_name || "Fund Member",
+        memberData: data,
+        portfolio: portfolio || undefined,
+      });
+    } catch (err) {
+      console.error("Failed to generate statement:", err);
+    }
+    setDownloading(false);
+  };
 
   if (isLoading) {
     return (
@@ -56,16 +116,47 @@ export default function MyInvestmentPage() {
   }
 
   const isPositive = data.totalGainLoss >= 0;
-
-  // NAV-based return: (currentNAV / avgEntryNAV - 1) * 100
   const navReturn =
     data.avgEntryNav > 0
       ? ((data.navPerUnit / data.avgEntryNav) - 1) * 100
       : 0;
 
+  // NAV chart data
+  const navChartData = (navData?.history || []).map((h) => ({
+    time: h.snapshot_date,
+    value: h.nav_per_unit,
+  }));
+
+  // NAV stats from history
+  const navHistory = navData?.history || [];
+  const allTimeHigh =
+    navHistory.length > 0
+      ? Math.max(...navHistory.map((h) => h.nav_per_unit))
+      : data.navPerUnit;
+  const firstNav = navHistory.length > 0 ? navHistory[0].nav_per_unit : data.navPerUnit;
+  const changeSinceStart =
+    firstNav > 0 ? ((data.navPerUnit - firstNav) / firstNav) * 100 : 0;
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">My Investment</h1>
+      {/* Header with Download */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold text-foreground">
+          My Investment
+        </h1>
+        <button
+          onClick={handleDownloadStatement}
+          disabled={downloading}
+          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-accent-hover disabled:opacity-50"
+        >
+          {downloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download Statement
+        </button>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -172,6 +263,86 @@ export default function MyInvestmentPage() {
             {navReturn.toFixed(2)}% since entry
           </p>
         </div>
+      </div>
+
+      {/* NAV History Chart */}
+      <div className="glass-card p-4 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              NAV History
+            </h2>
+            {hoverNav ? (
+              <p className="text-sm text-muted">
+                {formatCurrency(hoverNav.value)} on{" "}
+                {new Date(hoverNav.date + "T00:00:00").toLocaleDateString(
+                  "en-US",
+                  { month: "short", day: "numeric", year: "numeric" }
+                )}
+              </p>
+            ) : (
+              <p className="text-xs text-muted">
+                NAV per unit over time
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2">
+            {NAV_PERIODS.map((p) => (
+              <button
+                key={p.days}
+                onClick={() => setNavPeriod(p.days)}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  navPeriod === p.days
+                    ? "bg-gold/20 text-gold"
+                    : "text-muted hover:bg-card-glass hover:text-foreground"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* NAV Stats Row */}
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-card-glass/50 px-3 py-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              Current NAV
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {formatCurrency(data.navPerUnit)}
+            </p>
+          </div>
+          <div className="rounded-lg bg-card-glass/50 px-3 py-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              All-Time High
+            </p>
+            <div className="flex items-center gap-1">
+              <ArrowUp className="h-3 w-3 text-gain" />
+              <p className="text-sm font-semibold text-foreground">
+                {formatCurrency(allTimeHigh)}
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg bg-card-glass/50 px-3 py-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              Period Change
+            </p>
+            <p
+              className={`text-sm font-semibold ${
+                changeSinceStart >= 0 ? "text-gain" : "text-loss"
+              }`}
+            >
+              {changeSinceStart >= 0 ? "+" : ""}
+              {changeSinceStart.toFixed(2)}%
+            </p>
+          </div>
+        </div>
+
+        <NavHistoryChart
+          data={navChartData}
+          onCrosshairMove={handleCrosshairMove}
+        />
       </div>
 
       {/* Investment History */}

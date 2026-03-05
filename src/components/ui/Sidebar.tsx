@@ -14,6 +14,7 @@ import {
   X,
   BarChart3,
   DollarSign,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
@@ -23,6 +24,7 @@ const memberLinks = [
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/my-investment", label: "My Investment", icon: Wallet },
   { href: "/dashboard/history", label: "Trade History", icon: History },
+  { href: "/dashboard/updates", label: "Updates", icon: Bell },
 ];
 
 const adminLinks = [
@@ -31,6 +33,7 @@ const adminLinks = [
   { href: "/admin/trades", label: "Record Trade", icon: History },
   { href: "/admin/members", label: "Members", icon: Settings },
   { href: "/admin/investments", label: "Investments", icon: DollarSign },
+  { href: "/admin/updates", label: "Updates", icon: Bell },
 ];
 
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {

@@ -21,6 +21,11 @@ export interface Database {
         Insert: Omit<FundMetadata, "id" | "updated_at">;
         Update: Partial<Omit<FundMetadata, "id">>;
       };
+      fund_updates: {
+        Row: FundUpdate;
+        Insert: Omit<FundUpdate, "id" | "created_at" | "updated_at">;
+        Update: Partial<Omit<FundUpdate, "id">>;
+      };
     };
   };
 }
@@ -134,4 +139,15 @@ export interface ChartDataPoint {
   low: number;
   close: number;
   volume?: number;
+}
+
+export interface FundUpdate {
+  id: string;
+  title: string;
+  content: string;
+  category: "trade" | "announcement" | "report";
+  author_name: string;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
 }
