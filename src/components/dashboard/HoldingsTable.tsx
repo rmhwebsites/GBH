@@ -38,19 +38,21 @@ export function HoldingsTable({ holdings }: Props) {
               <th className="hidden px-4 py-3 font-medium text-right md:table-cell">
                 Shares
               </th>
-              <th className="px-4 py-3 font-medium text-right">Value</th>
-              <th className="hidden px-4 py-3 font-medium text-right lg:table-cell">
-                Gain/Loss
-              </th>
               <th className="hidden px-4 py-3 font-medium text-right sm:table-cell">
+                Value
+              </th>
+              <th className="px-4 py-3 font-medium text-right">
+                Total Return
+              </th>
+              <th className="hidden px-4 py-3 font-medium text-right xl:table-cell">
                 Weight
               </th>
             </tr>
           </thead>
           <tbody>
             {holdings.map((holding) => {
-              const isPositive = holding.quote.changePercent >= 0;
-              const gainPositive = holding.gainLoss >= 0;
+              const isDayPositive = holding.quote.changePercent >= 0;
+              const isTotalPositive = holding.gainLoss >= 0;
               return (
                 <tr
                   key={holding.id}
@@ -74,57 +76,65 @@ export function HoldingsTable({ holdings }: Props) {
                       </div>
                     </Link>
                   </td>
+                  {/* Current stock price */}
                   <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
                     {formatCurrency(holding.quote.price)}
                   </td>
+                  {/* Day Change — per-share $ and % */}
                   <td className="px-4 py-4 text-right">
                     <div className="flex flex-col items-end">
                       <div className="flex items-center gap-1">
-                        {isPositive ? (
+                        {isDayPositive ? (
                           <TrendingUp className="h-3 w-3 text-gain" />
                         ) : (
                           <TrendingDown className="h-3 w-3 text-loss" />
                         )}
                         <span
                           className={`text-sm font-medium ${
-                            isPositive ? "text-gain" : "text-loss"
+                            isDayPositive ? "text-gain" : "text-loss"
                           }`}
                         >
-                          {formatCurrency(holding.dayChange)}
+                          {formatCurrency(holding.quote.change)}
                         </span>
                       </div>
                       <span
                         className={`text-xs ${
-                          isPositive ? "text-gain" : "text-loss"
+                          isDayPositive ? "text-gain" : "text-loss"
                         }`}
                       >
                         {formatPercent(holding.quote.changePercent)}
                       </span>
                     </div>
                   </td>
+                  {/* Shares */}
                   <td className="hidden px-4 py-4 text-right text-sm text-muted transition-colors group-hover:text-white/60 md:table-cell">
                     {formatNumber(holding.shares)}
                   </td>
-                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
+                  {/* Position Value */}
+                  <td className="hidden px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white sm:table-cell">
                     {formatCurrency(holding.currentValue)}
                   </td>
-                  <td className="hidden px-4 py-4 text-right lg:table-cell">
-                    <span
-                      className={`text-sm font-medium ${
-                        gainPositive ? "text-gain" : "text-loss"
-                      }`}
-                    >
-                      {formatCurrency(holding.gainLoss)}
-                    </span>
-                    <span
-                      className={`ml-1 text-xs ${
-                        gainPositive ? "text-gain" : "text-loss"
-                      }`}
-                    >
-                      ({formatPercent(holding.gainLossPercent)})
-                    </span>
+                  {/* Total Return — all-time position $ and % */}
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex flex-col items-end">
+                      <span
+                        className={`text-sm font-medium ${
+                          isTotalPositive ? "text-gain" : "text-loss"
+                        }`}
+                      >
+                        {formatCurrency(holding.gainLoss)}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          isTotalPositive ? "text-gain" : "text-loss"
+                        }`}
+                      >
+                        {formatPercent(holding.gainLossPercent)}
+                      </span>
+                    </div>
                   </td>
-                  <td className="hidden px-4 py-4 text-right sm:table-cell">
+                  {/* Weight */}
+                  <td className="hidden px-4 py-4 text-right xl:table-cell">
                     <div className="flex items-center justify-end gap-2">
                       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-card-border">
                         <div
