@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
+import { randomUUID } from "crypto";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -49,10 +50,10 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = createServerClient();
 
-    // Get existing config
+    // Get existing config (include is_active to detect toggle-on)
     const { data: existing } = await supabase
       .from("voting_config")
-      .select("id")
+      .select("id, is_active, voting_session_id")
       .limit(1)
       .single();
 
@@ -69,6 +70,12 @@ export async function PUT(request: NextRequest) {
 
     if (typeof body.is_active === "boolean") {
       updateData.is_active = body.is_active;
+
+      // When voting is turned ON and was previously OFF,
+      // generate a new session ID so old votes don't carry over
+      if (body.is_active && !existing.is_active) {
+        updateData.voting_session_id = randomUUID();
+      }
     }
     if (typeof body.title === "string") {
       updateData.title = body.title;

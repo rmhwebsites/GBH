@@ -170,6 +170,7 @@ export interface VotingConfig {
   max_votes_per_member: number;
   starts_at: string | null;
   expires_at: string | null;
+  voting_session_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -180,6 +181,7 @@ export interface Vote {
   voter_name: string;
   candidate_memberstack_id: string;
   candidate_name: string;
+  voting_session_id: string | null;
   created_at: string;
 }
 

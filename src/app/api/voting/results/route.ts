@@ -9,10 +9,28 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
 
-    // Get all votes
+    // Get current voting session
+    const { data: config } = await supabase
+      .from("voting_config")
+      .select("voting_session_id")
+      .limit(1)
+      .single();
+
+    const sessionId = config?.voting_session_id || null;
+
+    if (!sessionId) {
+      return NextResponse.json({
+        results: [],
+        totalVoters: 0,
+        totalVotes: 0,
+      });
+    }
+
+    // Get all votes for the current session only
     const { data: allVotes, error } = await supabase
       .from("votes")
-      .select("candidate_memberstack_id, candidate_name, voter_memberstack_id");
+      .select("candidate_memberstack_id, candidate_name, voter_memberstack_id")
+      .eq("voting_session_id", sessionId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

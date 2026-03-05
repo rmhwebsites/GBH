@@ -11,45 +11,224 @@ import {
   Users,
   Trophy,
   Clock,
+  History,
 } from "lucide-react";
+import Image from "next/image";
 import type {
   VotingConfig,
   VotingCandidate,
   Vote,
   VotingResult,
 } from "@/types/database";
+import {
+  getMemberPhotoUrl,
+  getInitials,
+  getAvatarColor,
+} from "@/lib/memberPhotos";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
+/** Avatar component — shows photo if available, else initials */
+function MemberAvatar({
+  name,
+  size = "md",
+  className = "",
+}: {
+  name: string;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const photoUrl = getMemberPhotoUrl(name);
+  const sizeClasses = {
+    sm: "h-7 w-7 text-[10px]",
+    md: "h-12 w-12 sm:h-14 sm:w-14 text-sm sm:text-base",
+    lg: "h-16 w-16 text-lg",
+  };
 
-function getAvatarColor(name: string): string {
-  const colors = [
-    "bg-blue-600",
-    "bg-emerald-600",
-    "bg-purple-600",
-    "bg-amber-600",
-    "bg-rose-600",
-    "bg-cyan-600",
-    "bg-indigo-600",
-    "bg-teal-600",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  if (photoUrl) {
+    return (
+      <div
+        className={`relative overflow-hidden rounded-full ${sizeClasses[size]} ${className}`}
+      >
+        <Image
+          src={photoUrl}
+          alt={name}
+          fill
+          className="object-cover"
+          sizes={size === "sm" ? "28px" : size === "md" ? "56px" : "64px"}
+          unoptimized
+        />
+      </div>
+    );
   }
-  return colors[Math.abs(hash) % colors.length];
+
+  const color = getAvatarColor(name);
+  return (
+    <div
+      className={`flex items-center justify-center rounded-full font-bold text-white ${sizeClasses[size]} ${className}`}
+      style={{ backgroundColor: color }}
+    >
+      {getInitials(name)}
+    </div>
+  );
 }
 
 interface ConfigWithVisibility extends VotingConfig {
   is_visible: boolean;
+}
+
+interface HistorySession {
+  session_id: string;
+  date: string;
+  end_date: string;
+  total_voters: number;
+  total_votes: number;
+  results: VotingResult[];
+}
+
+/** Reusable Top-5 tally chart */
+function TallyChart({
+  results,
+  totalVoters,
+  myVotes,
+  title,
+  isLive,
+}: {
+  results: VotingResult[];
+  totalVoters: number;
+  myVotes?: Vote[];
+  title: string;
+  isLive?: boolean;
+}) {
+  const top5 = results.slice(0, 5);
+  if (top5.length === 0) return null;
+
+  return (
+    <div className="glass-card p-5 sm:p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-gold" />
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        </div>
+        {isLive && (
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-gain" />
+            <span className="text-xs text-muted">Live</span>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-5">
+        {top5.map((result, index) => {
+          const maxCount = top5[0]?.vote_count || 1;
+          const barWidth = (result.vote_count / maxCount) * 100;
+          const pctOfVoters =
+            totalVoters > 0
+              ? ((result.vote_count / totalVoters) * 100).toFixed(0)
+              : "0";
+          const isMyVote = myVotes?.some(
+            (v) =>
+              v.candidate_memberstack_id === result.candidate_memberstack_id
+          );
+
+          const medals = ["🥇", "🥈", "🥉"];
+          const medal = medals[index] || "";
+
+          return (
+            <div
+              key={result.candidate_memberstack_id}
+              className="flex items-center gap-3"
+            >
+              <MemberAvatar name={result.candidate_name} size="sm" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {medal ? (
+                      <span className="flex-shrink-0 text-base">{medal}</span>
+                    ) : (
+                      <span className="w-6 flex-shrink-0 text-center text-xs font-bold text-muted">
+                        #{index + 1}
+                      </span>
+                    )}
+                    <span
+                      className={`truncate text-sm font-semibold ${
+                        isMyVote ? "text-gold" : "text-foreground"
+                      }`}
+                    >
+                      {result.candidate_name}
+                    </span>
+                    {isMyVote && (
+                      <span className="flex-shrink-0 text-[10px] text-gold/70">
+                        (your vote)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <span className="text-sm font-bold text-gold">
+                      {result.vote_count}
+                    </span>
+                    <span className="text-xs text-muted">({pctOfVoters}%)</span>
+                  </div>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-card-border">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted">
+        <Users className="h-3 w-3" />
+        {totalVoters} {totalVoters === 1 ? "member" : "members"} voted
+      </div>
+
+      {/* Overflow list for ranks 6+ */}
+      {results.length > 5 && (
+        <div className="mt-4 border-t border-card-border/50 pt-3">
+          <div className="space-y-2">
+            {results.slice(5).map((result, i) => {
+              const isMyVote = myVotes?.some(
+                (v) =>
+                  v.candidate_memberstack_id ===
+                  result.candidate_memberstack_id
+              );
+              return (
+                <div
+                  key={result.candidate_memberstack_id}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center text-xs text-muted">
+                      #{i + 6}
+                    </span>
+                    <MemberAvatar name={result.candidate_name} size="sm" />
+                    <span
+                      className={`text-sm ${
+                        isMyVote
+                          ? "font-medium text-gold"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {result.candidate_name}
+                    </span>
+                  </div>
+                  <span className="text-sm text-muted">
+                    {result.vote_count}{" "}
+                    {result.vote_count === 1 ? "vote" : "votes"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function VotePage() {
@@ -101,6 +280,12 @@ export default function VotePage() {
     { refreshInterval: 15 * 1000 }
   );
 
+  // Always fetch voting history (shows past sessions)
+  const { data: historyData } = useSWR<{ sessions: HistorySession[] }>(
+    "/api/voting/history",
+    fetcher
+  );
+
   const isLoading = loadingConfig || loadingCandidates || loadingVotes;
 
   if (isLoading) {
@@ -114,7 +299,11 @@ export default function VotePage() {
     );
   }
 
-  // No active vote and not expired with results
+  const pastSessions = historyData?.sessions || [];
+
+  // ==========================================
+  // INACTIVE STATE — Show voting history
+  // ==========================================
   if (!config?.is_active && !isExpired) {
     return (
       <div className="space-y-6">
@@ -122,20 +311,51 @@ export default function VotePage() {
           <h1 className="text-2xl font-semibold text-foreground">Vote</h1>
           <p className="mt-1 text-sm text-muted">Investment team voting</p>
         </div>
-        <div className="glass-card p-8 text-center">
-          <VoteIcon className="mx-auto h-12 w-12 text-muted/50" />
-          <h2 className="mt-4 text-lg font-medium text-foreground">
+
+        {/* No active vote banner */}
+        <div className="glass-card p-6 text-center">
+          <VoteIcon className="mx-auto h-10 w-10 text-muted/50" />
+          <h2 className="mt-3 text-lg font-medium text-foreground">
             No Active Vote
           </h2>
-          <p className="mt-2 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted">
             There is no voting session currently active. Check back later.
           </p>
         </div>
+
+        {/* Past voting history */}
+        {pastSessions.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-gold" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Voting History
+              </h2>
+            </div>
+
+            {pastSessions.map((session) => {
+              const sessionDate = new Date(session.date).toLocaleDateString(
+                "en-US",
+                { month: "long", year: "numeric" }
+              );
+              return (
+                <TallyChart
+                  key={session.session_id}
+                  results={session.results}
+                  totalVoters={session.total_voters}
+                  title={sessionDate}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
-  // Scheduled but not started
+  // ==========================================
+  // SCHEDULED BUT NOT STARTED
+  // ==========================================
   if (isActiveButNotStarted) {
     const startsDate = new Date(config!.starts_at!).toLocaleString("en-US", {
       month: "long",
@@ -163,18 +383,44 @@ export default function VotePage() {
             Voting begins on {startsDate}
           </p>
         </div>
+
+        {/* Show history below scheduled notice */}
+        {pastSessions.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-gold" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Past Results
+              </h2>
+            </div>
+            {pastSessions.map((session) => {
+              const sessionDate = new Date(session.date).toLocaleDateString(
+                "en-US",
+                { month: "long", year: "numeric" }
+              );
+              return (
+                <TallyChart
+                  key={session.session_id}
+                  results={session.results}
+                  totalVoters={session.total_voters}
+                  title={sessionDate}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
+  // ==========================================
+  // ACTIVE VOTING STATE
+  // ==========================================
   const candidates = candidatesData?.candidates || [];
   const hasVoted = voteStatus?.hasVoted || false;
   const myVotes = voteStatus?.votes || [];
   const maxVotes = config?.max_votes_per_member || 5;
   const canVote = isVisible && !isExpired && !hasVoted;
-
-  const top5 = (resultsData?.results || []).slice(0, 5);
-  const totalVoters = resultsData?.totalVoters || 0;
 
   const toggleCandidate = (candidateId: string) => {
     setSelectedCandidates((prev) => {
@@ -326,13 +572,7 @@ export default function VotePage() {
                       : "cursor-pointer hover:border-card-border/80 hover:bg-white/[0.04]"
                   }`}
                 >
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white sm:h-14 sm:w-14 sm:text-base ${getAvatarColor(
-                      candidate.name
-                    )}`}
-                  >
-                    {getInitials(candidate.name)}
-                  </div>
+                  <MemberAvatar name={candidate.name} size="md" />
                   <span className="text-center text-xs font-medium text-foreground sm:text-sm">
                     {candidate.name}
                   </span>
@@ -372,135 +612,38 @@ export default function VotePage() {
         </div>
       )}
 
-      {/* Top 5 Live Tally Chart */}
-      {top5.length > 0 && (
-        <div className="glass-card p-5 sm:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-gold" />
-              <h2 className="text-lg font-semibold text-foreground">
-                {isExpired ? "Final Results — Top 5" : "Live Results — Top 5"}
-              </h2>
-            </div>
-            {!isExpired && (
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-gain" />
-                <span className="text-xs text-muted">Live</span>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {top5.map((result, index) => {
-              const maxCount = top5[0]?.vote_count || 1;
-              const barWidth = (result.vote_count / maxCount) * 100;
-              const pctOfVoters =
-                totalVoters > 0
-                  ? ((result.vote_count / totalVoters) * 100).toFixed(0)
-                  : "0";
-              const isMyVote = myVotes.some(
-                (v) =>
-                  v.candidate_memberstack_id ===
-                  result.candidate_memberstack_id
-              );
-
-              const medals = ["🥇", "🥈", "🥉"];
-              const medal = medals[index] || "";
-
-              return (
-                <div key={result.candidate_memberstack_id}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {medal ? (
-                        <span className="text-base">{medal}</span>
-                      ) : (
-                        <span className="w-6 text-center text-xs font-bold text-muted">
-                          #{index + 1}
-                        </span>
-                      )}
-                      <span
-                        className={`text-sm font-semibold ${
-                          isMyVote ? "text-gold" : "text-foreground"
-                        }`}
-                      >
-                        {result.candidate_name}
-                      </span>
-                      {isMyVote && (
-                        <span className="text-[10px] text-gold/70">
-                          (your vote)
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gold">
-                        {result.vote_count}
-                      </span>
-                      <span className="text-xs text-muted">
-                        ({pctOfVoters}%)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-card-border">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
-                      style={{ width: `${barWidth}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted">
-            <Users className="h-3 w-3" />
-            {totalVoters} {totalVoters === 1 ? "member has" : "members have"}{" "}
-            voted
-          </div>
-        </div>
+      {/* Current session results */}
+      {resultsData && resultsData.results.length > 0 && (
+        <TallyChart
+          results={resultsData.results}
+          totalVoters={resultsData.totalVoters}
+          myVotes={myVotes}
+          title={isExpired ? "Final Results" : "Live Results"}
+          isLive={!isExpired}
+        />
       )}
 
-      {/* Full results list (below top 5, shows all candidates) */}
-      {resultsData && resultsData.results.length > 5 && (
-        <div className="glass-card overflow-hidden">
-          <div className="border-b border-card-border px-4 py-3 sm:px-6">
-            <h3 className="text-sm font-semibold text-foreground">
-              All Candidates
-            </h3>
+      {/* Past voting history (below current results) */}
+      {pastSessions.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-muted" />
+            <h2 className="text-sm font-semibold text-muted">Past Votes</h2>
           </div>
-          <div className="divide-y divide-card-border/50">
-            {resultsData.results.slice(5).map((result, i) => {
-              const isMyVote = myVotes.some(
-                (v) =>
-                  v.candidate_memberstack_id ===
-                  result.candidate_memberstack_id
-              );
-              return (
-                <div
-                  key={result.candidate_memberstack_id}
-                  className="flex items-center justify-between px-4 py-2.5 sm:px-6"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 text-center text-xs text-muted">
-                      #{i + 6}
-                    </span>
-                    <span
-                      className={`text-sm ${
-                        isMyVote
-                          ? "font-medium text-gold"
-                          : "text-foreground"
-                      }`}
-                    >
-                      {result.candidate_name}
-                    </span>
-                  </div>
-                  <span className="text-sm text-muted">
-                    {result.vote_count}{" "}
-                    {result.vote_count === 1 ? "vote" : "votes"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {pastSessions.map((session) => {
+            const sessionDate = new Date(session.date).toLocaleDateString(
+              "en-US",
+              { month: "long", year: "numeric" }
+            );
+            return (
+              <TallyChart
+                key={session.session_id}
+                results={session.results}
+                totalVoters={session.total_voters}
+                title={sessionDate}
+              />
+            );
+          })}
         </div>
       )}
     </div>

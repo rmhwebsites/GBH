@@ -9,12 +9,33 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
 
-    // Get voter's existing votes
-    const { data, error } = await supabase
+    // Get current voting session
+    const { data: config } = await supabase
+      .from("voting_config")
+      .select("voting_session_id")
+      .limit(1)
+      .single();
+
+    const sessionId = config?.voting_session_id || null;
+
+    // Get voter's existing votes for the CURRENT session only
+    let query = supabase
       .from("votes")
       .select("*")
       .eq("voter_memberstack_id", auth.memberId)
       .order("created_at");
+
+    if (sessionId) {
+      query = query.eq("voting_session_id", sessionId);
+    } else {
+      // No session — no votes for current session
+      return NextResponse.json({
+        hasVoted: false,
+        votes: [],
+      });
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -85,6 +106,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const sessionId = config.voting_session_id;
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "No active voting session" },
+        { status: 403 }
+      );
+    }
+
     // 2. Check max votes
     if (candidateIds.length > config.max_votes_per_member) {
       return NextResponse.json(
@@ -95,11 +124,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Check voter hasn't already voted
+    // 3. Check voter hasn't already voted in this session
     const { data: existingVotes } = await supabase
       .from("votes")
       .select("id")
       .eq("voter_memberstack_id", auth.memberId)
+      .eq("voting_session_id", sessionId)
       .limit(1);
 
     if (existingVotes && existingVotes.length > 0) {
@@ -133,15 +163,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Check no self-voting (optional — remove if self-voting is OK)
-    // Skip this check for now; members can vote for themselves
-
-    // 6. Insert all votes atomically
+    // 5. Insert all votes with session ID
     const voteRecords = candidateIds.map((candidateId) => ({
       voter_memberstack_id: auth.memberId,
       voter_name: voterName || "Unknown",
       candidate_memberstack_id: candidateId,
       candidate_name: candidateNameMap.get(candidateId) || "Unknown",
+      voting_session_id: sessionId,
     }));
 
     const { error: insertError } = await supabase

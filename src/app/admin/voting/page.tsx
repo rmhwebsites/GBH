@@ -13,8 +13,14 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
+import Image from "next/image";
 import type { VotingConfig, VotingResult } from "@/types/database";
 import type { MemberInvestment } from "@/types/database";
+import {
+  getMemberPhotoUrl,
+  getInitials,
+  getAvatarColor,
+} from "@/lib/memberPhotos";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -42,6 +48,50 @@ function formatDate(isoStr: string | null): string {
 
 interface ConfigWithVisibility extends VotingConfig {
   is_visible: boolean;
+}
+
+/** Avatar component — shows photo if available, else initials */
+function MemberAvatar({
+  name,
+  size = "md",
+  className = "",
+}: {
+  name: string;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const photoUrl = getMemberPhotoUrl(name);
+  const sizeClasses = {
+    sm: "h-7 w-7 text-[10px]",
+    md: "h-9 w-9 text-xs",
+  };
+
+  if (photoUrl) {
+    return (
+      <div
+        className={`relative overflow-hidden rounded-full ${sizeClasses[size]} ${className}`}
+      >
+        <Image
+          src={photoUrl}
+          alt={name}
+          fill
+          className="object-cover"
+          sizes={size === "sm" ? "28px" : "36px"}
+          unoptimized
+        />
+      </div>
+    );
+  }
+
+  const color = getAvatarColor(name);
+  return (
+    <div
+      className={`flex items-center justify-center rounded-full font-bold text-white ${sizeClasses[size]} ${className}`}
+      style={{ backgroundColor: color }}
+    >
+      {getInitials(name)}
+    </div>
+  );
 }
 
 export default function AdminVotingPage() {
@@ -437,7 +487,7 @@ export default function AdminVotingPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {top5.map((result, index) => {
               const maxCount = top5[0]?.vote_count || 1;
               const barWidth = (result.vote_count / maxCount) * 100;
@@ -450,34 +500,40 @@ export default function AdminVotingPage() {
               const medal = medals[index] || "";
 
               return (
-                <div key={result.candidate_memberstack_id}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {medal ? (
-                        <span className="text-base">{medal}</span>
-                      ) : (
-                        <span className="w-6 text-center text-xs font-bold text-muted">
-                          #{index + 1}
+                <div key={result.candidate_memberstack_id} className="flex items-center gap-3">
+                  {/* Photo */}
+                  <MemberAvatar name={result.candidate_name} size="sm" />
+
+                  {/* Bar + Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {medal ? (
+                          <span className="text-base flex-shrink-0">{medal}</span>
+                        ) : (
+                          <span className="w-6 text-center text-xs font-bold text-muted flex-shrink-0">
+                            #{index + 1}
+                          </span>
+                        )}
+                        <span className="text-sm font-semibold text-foreground truncate">
+                          {result.candidate_name}
                         </span>
-                      )}
-                      <span className="text-sm font-semibold text-foreground">
-                        {result.candidate_name}
-                      </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-bold text-gold">
+                          {result.vote_count}
+                        </span>
+                        <span className="text-xs text-muted">
+                          ({pctOfVoters}%)
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gold">
-                        {result.vote_count}
-                      </span>
-                      <span className="text-xs text-muted">
-                        ({pctOfVoters}%)
-                      </span>
+                    <div className="h-3 overflow-hidden rounded-full bg-card-border">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
+                        style={{ width: `${barWidth}%` }}
+                      />
                     </div>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-card-border">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
-                      style={{ width: `${barWidth}%` }}
-                    />
                   </div>
                 </div>
               );
@@ -549,9 +605,12 @@ export default function AdminVotingPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 sm:px-6">
-                        <span className="text-sm font-medium text-foreground">
-                          {result.candidate_name}
-                        </span>
+                        <div className="flex items-center gap-2.5">
+                          <MemberAvatar name={result.candidate_name} size="sm" />
+                          <span className="text-sm font-medium text-foreground">
+                            {result.candidate_name}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right sm:px-6">
                         <span className="text-sm font-semibold text-foreground">
