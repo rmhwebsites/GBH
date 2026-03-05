@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { formatCurrency, formatPercent } from "@/lib/calculations";
 import { FundValueChart } from "@/components/charts/FundValueChart";
+import { GBHIcon } from "@/components/icons/GBHIcon";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -96,8 +97,16 @@ export function PortfolioSummary({
 
   return (
     <div className="glass-card overflow-hidden">
+      {/* Card Header */}
+      <div className="flex items-center gap-2 border-b border-card-border/40 px-5 py-3 sm:px-6">
+        <GBHIcon className="h-4 w-4 text-gold" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+          Account Overview
+        </span>
+      </div>
+
       {/* Hero Section */}
-      <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+      <div className="px-5 pt-4 sm:px-6 sm:pt-5">
         <p className="text-xs tracking-wide text-muted sm:text-sm">
           Total Account Value
         </p>
