@@ -29,24 +29,18 @@ export function HoldingsTable({ holdings }: Props) {
         <h2 className="text-lg font-semibold text-foreground">Holdings</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full" style={{ minWidth: "800px" }}>
           <thead>
             <tr className="border-b border-card-border text-left text-xs uppercase tracking-wider text-muted">
-              <th className="px-6 py-3 font-medium">Stock</th>
+              <th className="sticky left-0 z-10 bg-card-glass px-6 py-3 font-medium backdrop-blur-md">
+                Stock
+              </th>
               <th className="px-4 py-3 font-medium text-right">Price</th>
               <th className="px-4 py-3 font-medium text-right">Day Change</th>
-              <th className="hidden px-4 py-3 font-medium text-right md:table-cell">
-                Shares
-              </th>
-              <th className="hidden px-4 py-3 font-medium text-right sm:table-cell">
-                Value
-              </th>
-              <th className="px-4 py-3 font-medium text-right">
-                Total Return
-              </th>
-              <th className="hidden px-4 py-3 font-medium text-right xl:table-cell">
-                Weight
-              </th>
+              <th className="px-4 py-3 font-medium text-right">Shares</th>
+              <th className="px-4 py-3 font-medium text-right">Value</th>
+              <th className="px-4 py-3 font-medium text-right">Total Return</th>
+              <th className="px-4 py-3 font-medium text-right">Weight</th>
             </tr>
           </thead>
           <tbody>
@@ -58,7 +52,8 @@ export function HoldingsTable({ holdings }: Props) {
                   key={holding.id}
                   className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-white/[0.06]"
                 >
-                  <td className="px-6 py-4">
+                  {/* Stock — sticky on scroll */}
+                  <td className="sticky left-0 z-10 bg-card-glass px-6 py-4 backdrop-blur-md">
                     <Link
                       href={`/dashboard/stock/${holding.ticker}`}
                       className="block"
@@ -107,11 +102,11 @@ export function HoldingsTable({ holdings }: Props) {
                     </div>
                   </td>
                   {/* Shares */}
-                  <td className="hidden px-4 py-4 text-right text-sm text-muted transition-colors group-hover:text-white/60 md:table-cell">
+                  <td className="px-4 py-4 text-right text-sm text-muted transition-colors group-hover:text-white/60">
                     {formatNumber(holding.shares)}
                   </td>
                   {/* Position Value */}
-                  <td className="hidden px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white sm:table-cell">
+                  <td className="px-4 py-4 text-right font-medium text-foreground transition-colors group-hover:text-white">
                     {formatCurrency(holding.currentValue)}
                   </td>
                   {/* Total Return — all-time position $ and % */}
@@ -134,7 +129,7 @@ export function HoldingsTable({ holdings }: Props) {
                     </div>
                   </td>
                   {/* Weight */}
-                  <td className="hidden px-4 py-4 text-right xl:table-cell">
+                  <td className="px-4 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-card-border">
                         <div
