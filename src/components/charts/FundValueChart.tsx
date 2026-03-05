@@ -160,5 +160,5 @@ export function FundValueChart({ data, isPositive, onCrosshairMove }: Props) {
     );
   }
 
-  return <div ref={chartContainerRef} className="w-full" />;
+  return <div ref={chartContainerRef} className="w-full" style={{ touchAction: "pan-y" }} />;
 }

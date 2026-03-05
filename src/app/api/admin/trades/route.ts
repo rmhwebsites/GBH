@@ -114,6 +114,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update cash balance: BUY deducts from cash, SELL adds to cash
+    const tradeTotal = body.shares * body.price_per_share;
+    const { data: cashHolding } = await supabase
+      .from("portfolio_holdings")
+      .select("*")
+      .eq("ticker", "CASH")
+      .limit(1)
+      .single();
+
+    if (cashHolding) {
+      const newCashBalance =
+        body.action === "BUY"
+          ? cashHolding.shares - tradeTotal
+          : cashHolding.shares + tradeTotal;
+
+      await supabase
+        .from("portfolio_holdings")
+        .update({ shares: Math.max(0, newCashBalance) })
+        .eq("id", cashHolding.id);
+    }
+
     // Send trade alert email to all members (fire-and-forget)
     try {
       const { data: memberRows } = await supabase
