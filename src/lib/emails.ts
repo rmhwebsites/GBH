@@ -1,4 +1,4 @@
-import { resend, EMAIL_FROM } from "./resend";
+import { getResend, EMAIL_FROM } from "./resend";
 
 // ─── Brand colors ─────────────────────────────────────────────
 const GOLD = "#CE9C5C";
@@ -271,7 +271,7 @@ export async function sendTradeAlert(
   const emails = recipients.map((r) => r.email);
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: EMAIL_FROM,
       to: emails,
       subject,
@@ -298,7 +298,7 @@ export async function sendInvestmentAlert(
   const subject = `${isInvest ? "Investment" : "Withdrawal"} Confirmed: $${absAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: EMAIL_FROM,
       to: recipientEmail,
       subject,
