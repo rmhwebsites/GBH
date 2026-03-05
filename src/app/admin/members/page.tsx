@@ -318,7 +318,12 @@ export default function AdminMembersPage() {
                             <p className="font-medium text-foreground">
                               {m.name}
                             </p>
-                            <p className="text-xs text-muted">{m.email}</p>
+                            <a
+                              href={`mailto:${m.email}`}
+                              className="text-xs text-muted hover:text-gold hover:underline"
+                            >
+                              {m.email}
+                            </a>
                             <p className="text-[10px] text-muted/60">
                               {m.recordCount} transaction
                               {m.recordCount !== 1 ? "s" : ""}

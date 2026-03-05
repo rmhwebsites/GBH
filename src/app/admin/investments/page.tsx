@@ -563,7 +563,12 @@ export default function AdminInvestmentsPage() {
                   <h3 className="text-lg font-semibold text-foreground">
                     {summary.name}
                   </h3>
-                  <p className="text-xs text-muted">{summary.email}</p>
+                  <a
+                    href={`mailto:${summary.email}`}
+                    className="text-xs text-muted hover:text-gold hover:underline"
+                  >
+                    {summary.email}
+                  </a>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-muted">
