@@ -9,17 +9,44 @@ import {
   Trophy,
   BarChart3,
   CheckCircle2,
+  Calendar,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 import type { VotingConfig, VotingResult } from "@/types/database";
 import type { MemberInvestment } from "@/types/database";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// Format ISO string to local datetime-local input value
+function toLocalInput(isoStr: string | null): string {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  // Adjust for local timezone offset
+  const offset = d.getTimezoneOffset() * 60000;
+  const local = new Date(d.getTime() - offset);
+  return local.toISOString().slice(0, 16);
+}
+
+// Format for display
+function formatDate(isoStr: string | null): string {
+  if (!isoStr) return "Not set";
+  return new Date(isoStr).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+interface ConfigWithVisibility extends VotingConfig {
+  is_visible: boolean;
+}
+
 export default function AdminVotingPage() {
-  const { data: config, isLoading: loadingConfig } = useSWR<VotingConfig>(
-    "/api/admin/voting/config",
-    fetcher
-  );
+  const { data: config, isLoading: loadingConfig } =
+    useSWR<ConfigWithVisibility>("/api/admin/voting/config", fetcher);
 
   const { data: resultsData, isLoading: loadingResults } = useSWR<{
     results: VotingResult[];
@@ -36,6 +63,8 @@ export default function AdminVotingPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [maxVotes, setMaxVotes] = useState(5);
+  const [startsAt, setStartsAt] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -46,6 +75,8 @@ export default function AdminVotingPage() {
       setTitle(config.title);
       setDescription(config.description || "");
       setMaxVotes(config.max_votes_per_member);
+      setStartsAt(toLocalInput(config.starts_at));
+      setExpiresAt(toLocalInput(config.expires_at));
     }
   }, [config]);
 
@@ -53,9 +84,24 @@ export default function AdminVotingPage() {
     ? new Set(membersData.members.map((m) => m.memberstack_id)).size
     : 0;
 
+  // Compute visibility status
+  const now = new Date();
+  const startsAtDate = startsAt ? new Date(startsAt) : null;
+  const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
+  const hasStarted = !startsAtDate || now >= startsAtDate;
+  const hasExpired = expiresAtDate ? now >= expiresAtDate : false;
+  const isVisible = isActive && hasStarted && !hasExpired;
+
   const handleSave = async () => {
     setSaving(true);
     setSaveMessage(null);
+
+    // Validate dates
+    if (startsAt && expiresAt && new Date(startsAt) >= new Date(expiresAt)) {
+      setSaveMessage("Error: Start date must be before expiration date");
+      setSaving(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/admin/voting/config", {
@@ -66,6 +112,8 @@ export default function AdminVotingPage() {
           title,
           description: description || null,
           max_votes_per_member: maxVotes,
+          starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+          expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         }),
       });
 
@@ -95,6 +143,7 @@ export default function AdminVotingPage() {
   }
 
   const results = resultsData?.results || [];
+  const top5 = results.slice(0, 5);
   const totalVoters = resultsData?.totalVoters || 0;
   const participationRate =
     totalMembers > 0 ? ((totalVoters / totalMembers) * 100).toFixed(1) : "0";
@@ -111,6 +160,54 @@ export default function AdminVotingPage() {
         </p>
       </div>
 
+      {/* Visibility Status Banner */}
+      <div
+        className={`glass-card flex items-center gap-3 p-4 ${
+          isVisible
+            ? "border-gain/20"
+            : hasExpired
+            ? "border-loss/20"
+            : "border-card-border"
+        }`}
+      >
+        <div
+          className={`h-2.5 w-2.5 rounded-full ${
+            isVisible
+              ? "bg-gain animate-pulse"
+              : hasExpired
+              ? "bg-loss"
+              : "bg-muted"
+          }`}
+        />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-foreground">
+            {isVisible
+              ? "Voting is live and visible to members"
+              : hasExpired
+              ? "Voting has expired"
+              : !isActive
+              ? "Voting is disabled"
+              : !hasStarted
+              ? "Voting is scheduled — not yet visible"
+              : "Voting is not visible"}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted">
+            {startsAtDate && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Starts: {formatDate(startsAt || null)}
+              </span>
+            )}
+            {expiresAtDate && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Expires: {formatDate(expiresAt || null)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Config Card */}
       <div className="glass-card p-5 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-foreground">
@@ -122,10 +219,10 @@ export default function AdminVotingPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">
-                Voting Active
+                Voting Enabled
               </p>
               <p className="text-xs text-muted">
-                Members can see and submit votes when active
+                Master switch — must be on for voting to be visible
               </p>
             </div>
             <button
@@ -181,10 +278,74 @@ export default function AdminVotingPage() {
               max={20}
               value={maxVotes}
               onChange={(e) =>
-                setMaxVotes(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))
+                setMaxVotes(
+                  Math.max(1, Math.min(20, parseInt(e.target.value) || 1))
+                )
               }
               className="w-32 rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
             />
+          </div>
+
+          {/* Schedule */}
+          <div className="rounded-lg border border-card-border bg-card-glass/30 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gold" />
+              <p className="text-sm font-medium text-foreground">
+                Visibility Schedule
+              </p>
+            </div>
+            <p className="mb-3 text-xs text-muted">
+              Leave blank for no restriction. Voting is visible when enabled AND
+              within the scheduled window.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">
+                  Starts At
+                </label>
+                <input
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+                />
+                {startsAt && (
+                  <button
+                    onClick={() => setStartsAt("")}
+                    className="mt-1 text-xs text-muted hover:text-loss"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted">
+                  Expires At
+                </label>
+                <input
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+                />
+                {expiresAt && (
+                  <button
+                    onClick={() => setExpiresAt("")}
+                    className="mt-1 text-xs text-muted hover:text-loss"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+            {startsAt &&
+              expiresAt &&
+              new Date(startsAt) >= new Date(expiresAt) && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-loss">
+                  <AlertCircle className="h-3 w-3" />
+                  Start date must be before expiration date
+                </div>
+              )}
           </div>
 
           {/* Save */}
@@ -260,11 +421,81 @@ export default function AdminVotingPage() {
         </div>
       </div>
 
-      {/* Results Table */}
+      {/* Top 5 Live Tally Chart */}
+      {top5.length > 0 && (
+        <div className="glass-card p-5 sm:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-gold" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Top 5 — Live Tally
+              </h2>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-gain" />
+              <span className="text-xs text-muted">Live</span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {top5.map((result, index) => {
+              const maxCount = top5[0]?.vote_count || 1;
+              const barWidth = (result.vote_count / maxCount) * 100;
+              const pctOfVoters =
+                totalVoters > 0
+                  ? ((result.vote_count / totalVoters) * 100).toFixed(0)
+                  : "0";
+
+              const medals = ["🥇", "🥈", "🥉"];
+              const medal = medals[index] || "";
+
+              return (
+                <div key={result.candidate_memberstack_id}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {medal ? (
+                        <span className="text-base">{medal}</span>
+                      ) : (
+                        <span className="w-6 text-center text-xs font-bold text-muted">
+                          #{index + 1}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-foreground">
+                        {result.candidate_name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gold">
+                        {result.vote_count}
+                      </span>
+                      <span className="text-xs text-muted">
+                        ({pctOfVoters}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-card-border">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted">
+            <Users className="h-3 w-3" />
+            {totalVoters} of {totalMembers} members have voted
+          </div>
+        </div>
+      )}
+
+      {/* Full Results Table */}
       <div className="glass-card overflow-hidden">
         <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="text-lg font-semibold text-foreground">
-            Voting Results
+            All Results
           </h2>
         </div>
 
@@ -278,9 +509,7 @@ export default function AdminVotingPage() {
               <thead>
                 <tr className="border-b border-card-border text-left text-xs uppercase tracking-wider text-muted">
                   <th className="px-4 py-3 font-medium sm:px-6">Rank</th>
-                  <th className="px-4 py-3 font-medium sm:px-6">
-                    Candidate
-                  </th>
+                  <th className="px-4 py-3 font-medium sm:px-6">Candidate</th>
                   <th className="px-4 py-3 font-medium text-right sm:px-6">
                     Votes
                   </th>

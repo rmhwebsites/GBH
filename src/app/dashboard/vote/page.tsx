@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Users,
   Trophy,
+  Clock,
 } from "lucide-react";
 import type {
   VotingConfig,
@@ -29,7 +30,6 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-// Consistent color from name
 function getAvatarColor(name: string): string {
   const colors = [
     "bg-blue-600",
@@ -48,6 +48,10 @@ function getAvatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
+interface ConfigWithVisibility extends VotingConfig {
+  is_visible: boolean;
+}
+
 export default function VotePage() {
   const { userId } = useAuth();
   const memberId = userId || "";
@@ -58,31 +62,43 @@ export default function VotePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const { data: config, isLoading: loadingConfig } = useSWR<VotingConfig>(
-    "/api/voting/config",
-    fetcher,
-    { refreshInterval: 30 * 1000 }
-  );
+  const { data: config, isLoading: loadingConfig } =
+    useSWR<ConfigWithVisibility>("/api/voting/config", fetcher, {
+      refreshInterval: 30 * 1000,
+    });
 
+  const isVisible = config?.is_visible ?? false;
+  const isExpired =
+    config?.expires_at ? new Date() >= new Date(config.expires_at) : false;
+  const isActiveButNotStarted =
+    config?.is_active &&
+    config?.starts_at &&
+    new Date() < new Date(config.starts_at);
+
+  // Fetch candidates when visible OR when expired (to show history)
   const { data: candidatesData, isLoading: loadingCandidates } = useSWR<{
     candidates: VotingCandidate[];
-  }>(config?.is_active ? "/api/voting/candidates" : null, fetcher);
+  }>(
+    config?.is_active || isExpired ? "/api/voting/candidates" : null,
+    fetcher
+  );
 
   const { data: voteStatus, isLoading: loadingVotes } = useSWR<{
     hasVoted: boolean;
     votes: Vote[];
   }>(memberId ? "/api/voting/vote" : null, fetcher);
 
+  // Fetch results when visible, expired, or already voted
   const { data: resultsData } = useSWR<{
     results: VotingResult[];
     totalVoters: number;
     totalVotes: number;
   }>(
-    config?.is_active || voteStatus?.hasVoted
+    isVisible || isExpired || voteStatus?.hasVoted
       ? "/api/voting/results"
       : null,
     fetcher,
-    { refreshInterval: 15 * 1000 } // Refresh results every 15s
+    { refreshInterval: 15 * 1000 }
   );
 
   const isLoading = loadingConfig || loadingCandidates || loadingVotes;
@@ -98,15 +114,13 @@ export default function VotePage() {
     );
   }
 
-  // Voting not active
-  if (!config?.is_active) {
+  // No active vote and not expired with results
+  if (!config?.is_active && !isExpired) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Vote</h1>
-          <p className="mt-1 text-sm text-muted">
-            Investment team voting
-          </p>
+          <p className="mt-1 text-sm text-muted">Investment team voting</p>
         </div>
         <div className="glass-card p-8 text-center">
           <VoteIcon className="mx-auto h-12 w-12 text-muted/50" />
@@ -121,10 +135,46 @@ export default function VotePage() {
     );
   }
 
+  // Scheduled but not started
+  if (isActiveButNotStarted) {
+    const startsDate = new Date(config!.starts_at!).toLocaleString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {config?.title || "Vote"}
+          </h1>
+          {config?.description && (
+            <p className="mt-1 text-sm text-muted">{config.description}</p>
+          )}
+        </div>
+        <div className="glass-card p-8 text-center">
+          <Clock className="mx-auto h-12 w-12 text-gold/50" />
+          <h2 className="mt-4 text-lg font-medium text-foreground">
+            Voting Opens Soon
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Voting begins on {startsDate}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const candidates = candidatesData?.candidates || [];
   const hasVoted = voteStatus?.hasVoted || false;
   const myVotes = voteStatus?.votes || [];
-  const maxVotes = config.max_votes_per_member || 5;
+  const maxVotes = config?.max_votes_per_member || 5;
+  const canVote = isVisible && !isExpired && !hasVoted;
+
+  const top5 = (resultsData?.results || []).slice(0, 5);
+  const totalVoters = resultsData?.totalVoters || 0;
 
   const toggleCandidate = (candidateId: string) => {
     setSelectedCandidates((prev) => {
@@ -164,7 +214,6 @@ export default function VotePage() {
         return;
       }
 
-      // Refresh vote status and results
       mutate("/api/voting/vote");
       mutate("/api/voting/results");
     } catch {
@@ -174,17 +223,50 @@ export default function VotePage() {
     }
   };
 
+  // Expiration time display
+  const expiresAtStr = config?.expires_at
+    ? new Date(config.expires_at).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          {config.title}
+          {config?.title || "Vote"}
         </h1>
-        {config.description && (
+        {config?.description && (
           <p className="mt-1 text-sm text-muted">{config.description}</p>
         )}
       </div>
+
+      {/* Expired banner */}
+      {isExpired && (
+        <div className="glass-card border-loss/20 p-4">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-loss" />
+            <p className="text-sm font-medium text-foreground">
+              Voting has ended
+            </p>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            The voting period has expired. Results are shown below.
+          </p>
+        </div>
+      )}
+
+      {/* Expiration countdown (if active and has expiration) */}
+      {!isExpired && expiresAtStr && (
+        <div className="flex items-center gap-1.5 text-xs text-muted">
+          <Clock className="h-3 w-3" />
+          Voting closes {expiresAtStr}
+        </div>
+      )}
 
       {/* Already voted confirmation */}
       {hasVoted && (
@@ -192,9 +274,7 @@ export default function VotePage() {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-gain" />
             <div>
-              <h3 className="font-medium text-foreground">
-                Vote Submitted
-              </h3>
+              <h3 className="font-medium text-foreground">Vote Submitted</h3>
               <p className="mt-1 text-sm text-muted">
                 You voted for:{" "}
                 {myVotes.map((v) => v.candidate_name).join(", ")}
@@ -207,8 +287,8 @@ export default function VotePage() {
         </div>
       )}
 
-      {/* Voting form (only if not voted yet) */}
-      {!hasVoted && (
+      {/* Voting form (only if can vote) */}
+      {canVote && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted">
@@ -236,9 +316,7 @@ export default function VotePage() {
               return (
                 <button
                   key={candidate.memberstack_id}
-                  onClick={() =>
-                    toggleCandidate(candidate.memberstack_id)
-                  }
+                  onClick={() => toggleCandidate(candidate.memberstack_id)}
                   disabled={isDisabled}
                   className={`glass-card flex flex-col items-center gap-3 p-4 transition-all sm:p-5 ${
                     isSelected
@@ -248,7 +326,6 @@ export default function VotePage() {
                       : "cursor-pointer hover:border-card-border/80 hover:bg-white/[0.04]"
                   }`}
                 >
-                  {/* Avatar */}
                   <div
                     className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white sm:h-14 sm:w-14 sm:text-base ${getAvatarColor(
                       candidate.name
@@ -256,13 +333,9 @@ export default function VotePage() {
                   >
                     {getInitials(candidate.name)}
                   </div>
-
-                  {/* Name */}
                   <span className="text-center text-xs font-medium text-foreground sm:text-sm">
                     {candidate.name}
                   </span>
-
-                  {/* Checkmark indicator */}
                   {isSelected && (
                     <CheckCircle2 className="h-4 w-4 text-gold" />
                   )}
@@ -271,7 +344,6 @@ export default function VotePage() {
             })}
           </div>
 
-          {/* Error */}
           {submitError && (
             <div className="flex items-center gap-2 rounded-lg bg-loss/10 px-4 py-3 text-sm text-loss">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -279,7 +351,6 @@ export default function VotePage() {
             </div>
           )}
 
-          {/* Submit */}
           <button
             onClick={handleSubmit}
             disabled={submitting || selectedCandidates.size === 0}
@@ -301,74 +372,134 @@ export default function VotePage() {
         </div>
       )}
 
-      {/* Live Results (visible after voting or always if voted) */}
-      {(hasVoted || resultsData) && resultsData && (
-        <div className="glass-card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+      {/* Top 5 Live Tally Chart */}
+      {top5.length > 0 && (
+        <div className="glass-card p-5 sm:p-6">
+          <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-gold" />
               <h2 className="text-lg font-semibold text-foreground">
-                Live Results
+                {isExpired ? "Final Results — Top 5" : "Live Results — Top 5"}
               </h2>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted">
-              <Users className="h-3.5 w-3.5" />
-              {resultsData.totalVoters} voted
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-6">
-            {resultsData.results.length === 0 ? (
-              <p className="text-center text-sm text-muted">
-                No votes yet. Be the first to vote!
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {resultsData.results.map((result, index) => {
-                  const maxVoteCount = resultsData.results[0]?.vote_count || 1;
-                  const barWidth = (result.vote_count / maxVoteCount) * 100;
-                  const isMyVote = myVotes.some(
-                    (v) =>
-                      v.candidate_memberstack_id ===
-                      result.candidate_memberstack_id
-                  );
-
-                  return (
-                    <div key={result.candidate_memberstack_id}>
-                      <div className="mb-1 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {index === 0 && (
-                            <Trophy className="h-3.5 w-3.5 text-gold" />
-                          )}
-                          <span
-                            className={`text-sm font-medium ${
-                              isMyVote ? "text-gold" : "text-foreground"
-                            }`}
-                          >
-                            {result.candidate_name}
-                          </span>
-                          {isMyVote && (
-                            <span className="text-[10px] text-gold/70">
-                              (your vote)
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm font-medium text-muted">
-                          {result.vote_count}{" "}
-                          {result.vote_count === 1 ? "vote" : "votes"}
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-card-border">
-                        <div
-                          className="h-full rounded-full bg-gold transition-all duration-500"
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+            {!isExpired && (
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-gain" />
+                <span className="text-xs text-muted">Live</span>
               </div>
             )}
+          </div>
+
+          <div className="space-y-4">
+            {top5.map((result, index) => {
+              const maxCount = top5[0]?.vote_count || 1;
+              const barWidth = (result.vote_count / maxCount) * 100;
+              const pctOfVoters =
+                totalVoters > 0
+                  ? ((result.vote_count / totalVoters) * 100).toFixed(0)
+                  : "0";
+              const isMyVote = myVotes.some(
+                (v) =>
+                  v.candidate_memberstack_id ===
+                  result.candidate_memberstack_id
+              );
+
+              const medals = ["🥇", "🥈", "🥉"];
+              const medal = medals[index] || "";
+
+              return (
+                <div key={result.candidate_memberstack_id}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {medal ? (
+                        <span className="text-base">{medal}</span>
+                      ) : (
+                        <span className="w-6 text-center text-xs font-bold text-muted">
+                          #{index + 1}
+                        </span>
+                      )}
+                      <span
+                        className={`text-sm font-semibold ${
+                          isMyVote ? "text-gold" : "text-foreground"
+                        }`}
+                      >
+                        {result.candidate_name}
+                      </span>
+                      {isMyVote && (
+                        <span className="text-[10px] text-gold/70">
+                          (your vote)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gold">
+                        {result.vote_count}
+                      </span>
+                      <span className="text-xs text-muted">
+                        ({pctOfVoters}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-card-border">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-gold/80 to-gold transition-all duration-700"
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted">
+            <Users className="h-3 w-3" />
+            {totalVoters} {totalVoters === 1 ? "member has" : "members have"}{" "}
+            voted
+          </div>
+        </div>
+      )}
+
+      {/* Full results list (below top 5, shows all candidates) */}
+      {resultsData && resultsData.results.length > 5 && (
+        <div className="glass-card overflow-hidden">
+          <div className="border-b border-card-border px-4 py-3 sm:px-6">
+            <h3 className="text-sm font-semibold text-foreground">
+              All Candidates
+            </h3>
+          </div>
+          <div className="divide-y divide-card-border/50">
+            {resultsData.results.slice(5).map((result, i) => {
+              const isMyVote = myVotes.some(
+                (v) =>
+                  v.candidate_memberstack_id ===
+                  result.candidate_memberstack_id
+              );
+              return (
+                <div
+                  key={result.candidate_memberstack_id}
+                  className="flex items-center justify-between px-4 py-2.5 sm:px-6"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center text-xs text-muted">
+                      #{i + 6}
+                    </span>
+                    <span
+                      className={`text-sm ${
+                        isMyVote
+                          ? "font-medium text-gold"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {result.candidate_name}
+                    </span>
+                  </div>
+                  <span className="text-sm text-muted">
+                    {result.vote_count}{" "}
+                    {result.vote_count === 1 ? "vote" : "votes"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

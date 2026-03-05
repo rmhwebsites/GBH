@@ -168,6 +168,8 @@ export interface VotingConfig {
   title: string;
   description: string | null;
   max_votes_per_member: number;
+  starts_at: string | null;
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
 }

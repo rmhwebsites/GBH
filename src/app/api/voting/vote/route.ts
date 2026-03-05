@@ -67,6 +67,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check date window
+    const now = new Date();
+    const startsAt = config.starts_at ? new Date(config.starts_at) : null;
+    const expiresAt = config.expires_at ? new Date(config.expires_at) : null;
+
+    if (startsAt && now < startsAt) {
+      return NextResponse.json(
+        { error: "Voting has not started yet" },
+        { status: 403 }
+      );
+    }
+    if (expiresAt && now >= expiresAt) {
+      return NextResponse.json(
+        { error: "Voting has expired" },
+        { status: 403 }
+      );
+    }
+
     // 2. Check max votes
     if (candidateIds.length > config.max_votes_per_member) {
       return NextResponse.json(

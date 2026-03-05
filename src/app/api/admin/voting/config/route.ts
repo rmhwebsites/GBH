@@ -21,7 +21,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    // Compute effective visibility for display
+    const now = new Date();
+    const startsAt = data.starts_at ? new Date(data.starts_at) : null;
+    const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
+    const withinWindow =
+      (!startsAt || now >= startsAt) && (!expiresAt || now < expiresAt);
+
+    return NextResponse.json({
+      ...data,
+      is_visible: data.is_active && withinWindow,
+    });
   } catch (err) {
     console.error("Error fetching voting config:", err);
     return NextResponse.json(
@@ -71,6 +81,12 @@ export async function PUT(request: NextRequest) {
         1,
         Math.min(20, body.max_votes_per_member)
       );
+    }
+    if (body.starts_at !== undefined) {
+      updateData.starts_at = body.starts_at || null;
+    }
+    if (body.expires_at !== undefined) {
+      updateData.expires_at = body.expires_at || null;
     }
 
     const { data, error } = await supabase

@@ -17,19 +17,36 @@ export async function GET(request: NextRequest) {
     if (error) {
       return NextResponse.json({
         is_active: false,
+        is_visible: false,
         title: "Investment Team Vote",
         description: null,
         max_votes_per_member: 5,
+        starts_at: null,
+        expires_at: null,
       });
     }
 
-    return NextResponse.json(data);
+    // Compute effective visibility: is_active + within date window
+    const now = new Date();
+    const startsAt = data.starts_at ? new Date(data.starts_at) : null;
+    const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
+
+    const withinWindow =
+      (!startsAt || now >= startsAt) && (!expiresAt || now < expiresAt);
+
+    return NextResponse.json({
+      ...data,
+      is_visible: data.is_active && withinWindow,
+    });
   } catch {
     return NextResponse.json({
       is_active: false,
+      is_visible: false,
       title: "Investment Team Vote",
       description: null,
       max_votes_per_member: 5,
+      starts_at: null,
+      expires_at: null,
     });
   }
 }
