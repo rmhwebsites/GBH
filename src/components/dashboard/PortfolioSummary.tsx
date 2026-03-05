@@ -179,10 +179,10 @@ export function PortfolioSummary({
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
-              Cash
+              Cost Basis
             </p>
             <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
-              {formatCurrency(cashBalance)}
+              {formatCurrency(totalCost)}
             </p>
           </div>
           <div>
@@ -205,10 +205,10 @@ export function PortfolioSummary({
         <div className="grid grid-cols-4 gap-3 sm:gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
-              Cost Basis
+              Cash
             </p>
             <p className="mt-0.5 text-sm font-semibold text-foreground sm:text-base">
-              {formatCurrency(totalCost)}
+              {formatCurrency(cashBalance)}
             </p>
           </div>
           <div>

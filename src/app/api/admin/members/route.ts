@@ -131,62 +131,22 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = createServerClient();
 
-    // Get the old record to calculate unit difference
-    const { data: oldRecord, error: fetchError } = await supabase
-      .from("member_investments")
-      .select("units_owned")
-      .eq("id", body.id)
-      .single();
-
-    if (fetchError || !oldRecord) {
-      return NextResponse.json(
-        { error: "Record not found" },
-        { status: 404 }
-      );
-    }
-
-    const oldUnits = oldRecord.units_owned;
-    const newUnits = body.units_owned;
-    const unitsDiff = newUnits - oldUnits;
-
-    // Update the member record
+    // Update name and email across ALL records for this memberstack_id
+    // Financial data (amount_invested, units_owned) is managed via the Investments page
     const { data, error } = await supabase
       .from("member_investments")
       .update({
         member_name: body.member_name,
         member_email: body.member_email,
-        amount_invested: body.amount_invested,
-        units_owned: body.units_owned,
       })
-      .eq("id", body.id)
-      .select()
-      .single();
+      .eq("memberstack_id", body.memberstack_id)
+      .select();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Sync fund_metadata.total_units_outstanding if units changed
-    if (unitsDiff !== 0) {
-      const { data: metadata } = await supabase
-        .from("fund_metadata")
-        .select("*")
-        .limit(1)
-        .single();
-
-      if (metadata) {
-        const newTotalUnits = Math.max(
-          0,
-          metadata.total_units_outstanding + unitsDiff
-        );
-        await supabase
-          .from("fund_metadata")
-          .update({ total_units_outstanding: newTotalUnits })
-          .eq("id", metadata.id);
-      }
-    }
-
-    return NextResponse.json({ member: data });
+    return NextResponse.json({ members: data });
   } catch (err) {
     console.error("Error updating member:", err);
     return NextResponse.json(

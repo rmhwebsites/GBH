@@ -2,33 +2,28 @@
 
 import useSWR from "swr";
 import { useState } from "react";
+import Link from "next/link";
 import {
   Loader2,
-  Plus,
   Pencil,
   X,
-  Save,
   Check,
   Users,
+  ArrowRight,
 } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import type { MemberInvestment } from "@/types/database";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-interface MemberForm {
-  memberstack_id: string;
-  member_name: string;
-  member_email: string;
-  amount_invested: string;
+interface MemberSummary {
+  memberstackId: string;
+  name: string;
+  email: string;
+  totalInvested: number;
+  totalUnits: number;
+  recordCount: number;
 }
-
-const emptyForm: MemberForm = {
-  memberstack_id: "",
-  member_name: "",
-  member_email: "",
-  amount_invested: "",
-};
 
 export default function AdminMembersPage() {
   const { data, isLoading, mutate } = useSWR<{ members: MemberInvestment[] }>(
@@ -39,14 +34,10 @@ export default function AdminMembersPage() {
     "/api/portfolio/nav",
     fetcher
   );
-  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<MemberForm>(emptyForm);
   const [editForm, setEditForm] = useState({
     member_name: "",
     member_email: "",
-    amount_invested: "",
-    units_owned: "",
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -59,90 +50,79 @@ export default function AdminMembersPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const handleAdd = async () => {
-    if (!form.memberstack_id || !form.amount_invested) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/admin/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memberstack_id: form.memberstack_id,
-          member_name: form.member_name,
-          member_email: form.member_email,
-          amount_invested: parseFloat(form.amount_invested),
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to add member");
-      setForm(emptyForm);
-      setShowForm(false);
-      mutate();
-      showMessage("success", `${form.member_name} added`);
-    } catch {
-      showMessage("error", "Failed to add member");
-    }
-    setSaving(false);
-  };
+  const members = data?.members || [];
+  const navPerUnit = navData?.nav || 0;
 
-  const handleUpdate = async (id: string) => {
+  // Aggregate all records per memberstack_id
+  const memberSummaries: MemberSummary[] = [];
+  const memberMap = new Map<string, MemberSummary>();
+
+  members.forEach((m) => {
+    const existing = memberMap.get(m.memberstack_id);
+    if (existing) {
+      existing.totalInvested += m.amount_invested;
+      existing.totalUnits += m.units_owned;
+      existing.recordCount += 1;
+      // Use the most recent name/email
+      existing.name = m.member_name;
+      existing.email = m.member_email;
+    } else {
+      const summary: MemberSummary = {
+        memberstackId: m.memberstack_id,
+        name: m.member_name,
+        email: m.member_email,
+        totalInvested: m.amount_invested,
+        totalUnits: m.units_owned,
+        recordCount: 1,
+      };
+      memberMap.set(m.memberstack_id, summary);
+      memberSummaries.push(summary);
+    }
+  });
+
+  // Sort by name
+  memberSummaries.sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleUpdate = async (memberstackId: string) => {
     setSaving(true);
     try {
       const res = await fetch("/api/admin/members", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id,
+          memberstack_id: memberstackId,
           member_name: editForm.member_name,
           member_email: editForm.member_email,
-          amount_invested: parseFloat(editForm.amount_invested),
-          units_owned: parseFloat(editForm.units_owned),
         }),
       });
       if (!res.ok) throw new Error("Failed to update");
       setEditingId(null);
       mutate();
-      showMessage("success", "Member updated");
+      showMessage("success", "Member info updated across all records");
     } catch {
       showMessage("error", "Failed to update member");
     }
     setSaving(false);
   };
 
-  const startEdit = (m: MemberInvestment) => {
-    setEditingId(m.id);
+  const startEdit = (summary: MemberSummary) => {
+    setEditingId(summary.memberstackId);
     setEditForm({
-      member_name: m.member_name,
-      member_email: m.member_email,
-      amount_invested: m.amount_invested.toString(),
-      units_owned: m.units_owned.toString(),
+      member_name: summary.name,
+      member_email: summary.email,
     });
-    setShowForm(false);
   };
 
-  const members = data?.members || [];
-  const navPerUnit = navData?.nav || 0;
-
-  // Group by memberstack_id to calculate totals
-  const memberGroups = new Map<
-    string,
-    { name: string; email: string; totalInvested: number; totalUnits: number; investments: MemberInvestment[] }
-  >();
-  members.forEach((m) => {
-    const existing = memberGroups.get(m.memberstack_id);
-    if (existing) {
-      existing.totalInvested += m.amount_invested;
-      existing.totalUnits += m.units_owned;
-      existing.investments.push(m);
-    } else {
-      memberGroups.set(m.memberstack_id, {
-        name: m.member_name,
-        email: m.member_email,
-        totalInvested: m.amount_invested,
-        totalUnits: m.units_owned,
-        investments: [m],
-      });
-    }
-  });
+  // Fund totals
+  const totalInvested = memberSummaries.reduce(
+    (sum, m) => sum + m.totalInvested,
+    0
+  );
+  const totalUnits = memberSummaries.reduce(
+    (sum, m) => sum + m.totalUnits,
+    0
+  );
+  const totalCurrentValue = totalUnits * navPerUnit;
 
   if (isLoading) {
     return (
@@ -160,7 +140,7 @@ export default function AdminMembersPage() {
             Manage Members
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Add investments and manage member accounts.
+            View member summaries. Edit name/email here.
             {navPerUnit > 0 && (
               <span className="ml-2 text-gold">
                 Current NAV: {formatCurrency(navPerUnit)}/unit
@@ -168,17 +148,13 @@ export default function AdminMembersPage() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => {
-            setShowForm(!showForm);
-            setEditingId(null);
-            setForm(emptyForm);
-          }}
+        <Link
+          href="/admin/investments"
           className="flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-gold-light"
         >
-          <Plus className="h-4 w-4" />
-          Add Investment
-        </button>
+          Record Investment
+          <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
 
       {/* Status Message */}
@@ -199,99 +175,40 @@ export default function AdminMembersPage() {
         </div>
       )}
 
-      {/* Add Form */}
-      {showForm && (
-        <div className="glass-card p-6">
-          <h3 className="mb-4 text-lg font-medium text-foreground">
-            Add Member Investment
-          </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-muted">
-                Memberstack ID
-              </label>
-              <input
-                type="text"
-                placeholder="mem_abc123..."
-                value={form.memberstack_id}
-                onChange={(e) =>
-                  setForm({ ...form, memberstack_id: e.target.value })
-                }
-                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-gold focus:outline-none"
-              />
-              <p className="mt-1 text-xs text-muted">
-                Find this in your Memberstack dashboard
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted">
-                Member Name
-              </label>
-              <input
-                type="text"
-                placeholder="John Doe"
-                value={form.member_name}
-                onChange={(e) =>
-                  setForm({ ...form, member_name: e.target.value })
-                }
-                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-gold focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted">Email</label>
-              <input
-                type="email"
-                placeholder="john@example.com"
-                value={form.member_email}
-                onChange={(e) =>
-                  setForm({ ...form, member_email: e.target.value })
-                }
-                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-gold focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted">
-                Investment Amount ($)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="5000.00"
-                value={form.amount_invested}
-                onChange={(e) =>
-                  setForm({ ...form, amount_invested: e.target.value })
-                }
-                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-gold focus:outline-none"
-              />
-              {form.amount_invested && navPerUnit > 0 && (
-                <p className="mt-1 text-xs text-gold">
-                  = {formatNumber(parseFloat(form.amount_invested) / navPerUnit, 4)} units
-                </p>
-              )}
-            </div>
+      {/* Summary Bar */}
+      {memberSummaries.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <div className="glass-card px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Members
+            </p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">
+              {memberSummaries.length}
+            </p>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={handleAdd}
-              disabled={saving || !form.memberstack_id || !form.amount_invested}
-              className="flex items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-gold-light disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Add Investment
-            </button>
-            <button
-              onClick={() => {
-                setShowForm(false);
-                setForm(emptyForm);
-              }}
-              className="rounded-lg border border-card-border px-4 py-2 text-sm text-muted hover:text-foreground"
-            >
-              Cancel
-            </button>
+          <div className="glass-card px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Total Invested
+            </p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">
+              {formatCurrency(totalInvested)}
+            </p>
+          </div>
+          <div className="glass-card px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Total Units
+            </p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">
+              {formatNumber(totalUnits, 4)}
+            </p>
+          </div>
+          <div className="glass-card px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted sm:text-xs">
+              Total Value
+            </p>
+            <p className="mt-0.5 text-lg font-semibold text-foreground">
+              {formatCurrency(totalCurrentValue)}
+            </p>
           </div>
         </div>
       )}
@@ -302,13 +219,32 @@ export default function AdminMembersPage() {
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-gold" />
             <h2 className="text-lg font-semibold text-foreground">
-              Members ({memberGroups.size})
+              Members ({memberSummaries.length})
             </h2>
           </div>
+          <p className="mt-1 text-xs text-muted">
+            Aggregated from {members.length} investment record
+            {members.length !== 1 ? "s" : ""}. To add or modify investments, use
+            the{" "}
+            <Link
+              href="/admin/investments"
+              className="text-gold underline hover:text-gold-light"
+            >
+              Investments page
+            </Link>
+            .
+          </p>
         </div>
-        {members.length === 0 ? (
+        {memberSummaries.length === 0 ? (
           <div className="p-8 text-center text-muted">
-            No members yet. Click &quot;Add Investment&quot; to register the first member.
+            No members yet. Go to the{" "}
+            <Link
+              href="/admin/investments"
+              className="text-gold underline hover:text-gold-light"
+            >
+              Investments page
+            </Link>{" "}
+            to record the first investment.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -326,22 +262,29 @@ export default function AdminMembersPage() {
                   <th className="px-4 py-3 font-medium text-right">
                     Gain/Loss
                   </th>
-                  <th className="px-4 py-3 font-medium text-right">Date</th>
+                  <th className="px-4 py-3 font-medium text-right">
+                    Return
+                  </th>
                   <th className="px-4 py-3 font-medium text-right">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => {
-                  const currentValue = m.units_owned * navPerUnit;
-                  const gainLoss = currentValue - m.amount_invested;
+                {memberSummaries.map((m) => {
+                  const currentValue = m.totalUnits * navPerUnit;
+                  const gainLoss = currentValue - m.totalInvested;
+                  const returnPct =
+                    m.totalInvested > 0
+                      ? ((currentValue - m.totalInvested) / m.totalInvested) *
+                        100
+                      : 0;
                   const isPositive = gainLoss >= 0;
-                  const isEditing = editingId === m.id;
+                  const isEditing = editingId === m.memberstackId;
 
                   return (
                     <tr
-                      key={m.id}
+                      key={m.memberstackId}
                       className="border-b border-card-border/50 transition-colors hover:bg-card-glass"
                     >
                       <td className="px-6 py-3">
@@ -373,53 +316,21 @@ export default function AdminMembersPage() {
                         ) : (
                           <div>
                             <p className="font-medium text-foreground">
-                              {m.member_name}
+                              {m.name}
                             </p>
-                            <p className="text-xs text-muted">
-                              {m.member_email}
+                            <p className="text-xs text-muted">{m.email}</p>
+                            <p className="text-[10px] text-muted/60">
+                              {m.recordCount} transaction
+                              {m.recordCount !== 1 ? "s" : ""}
                             </p>
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editForm.amount_invested}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                amount_invested: e.target.value,
-                              })
-                            }
-                            className="w-28 rounded border border-input-border bg-input-bg px-2 py-1 text-right text-sm text-foreground focus:border-gold focus:outline-none"
-                          />
-                        ) : (
-                          <span className="text-sm text-foreground">
-                            {formatCurrency(m.amount_invested)}
-                          </span>
-                        )}
+                      <td className="px-4 py-3 text-right text-sm text-foreground">
+                        {formatCurrency(m.totalInvested)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            step="0.0001"
-                            value={editForm.units_owned}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                units_owned: e.target.value,
-                              })
-                            }
-                            className="w-28 rounded border border-input-border bg-input-bg px-2 py-1 text-right text-sm text-foreground focus:border-gold focus:outline-none"
-                          />
-                        ) : (
-                          <span className="text-sm text-muted">
-                            {formatNumber(m.units_owned, 4)}
-                          </span>
-                        )}
+                      <td className="px-4 py-3 text-right text-sm text-muted">
+                        {formatNumber(m.totalUnits, 4)}
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-medium text-foreground">
                         {formatCurrency(currentValue)}
@@ -430,20 +341,27 @@ export default function AdminMembersPage() {
                             isPositive ? "text-gain" : "text-loss"
                           }`}
                         >
+                          {gainLoss >= 0 ? "+" : ""}
                           {formatCurrency(gainLoss)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-muted">
-                        {new Date(m.investment_date).toLocaleDateString(
-                          "en-US",
-                          { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }
-                        )}
+                      <td className="px-4 py-3 text-right">
+                        <span
+                          className={`text-sm font-medium ${
+                            isPositive ? "text-gain" : "text-loss"
+                          }`}
+                        >
+                          {returnPct >= 0 ? "+" : ""}
+                          {returnPct.toFixed(2)}%
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {isEditing ? (
                           <div className="flex justify-end gap-1">
                             <button
-                              onClick={() => handleUpdate(m.id)}
+                              onClick={() =>
+                                handleUpdate(m.memberstackId)
+                              }
                               disabled={saving}
                               className="rounded p-1.5 text-gain hover:bg-gain/10"
                             >
@@ -464,6 +382,7 @@ export default function AdminMembersPage() {
                           <button
                             onClick={() => startEdit(m)}
                             className="rounded p-1.5 text-muted hover:bg-card-glass hover:text-gold"
+                            title="Edit name & email"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
