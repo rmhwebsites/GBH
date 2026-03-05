@@ -10,6 +10,9 @@ const MUTED = "#71717A";
 const GAIN = "#22C55E";
 const LOSS = "#EF4444";
 
+// ─── Logo URL ────────────────────────────────────────────────
+const LOGO_URL = "https://dashboard.gbhinvestments.com/lobster-white.png";
+
 // ─── Shared layout ────────────────────────────────────────────
 function emailWrapper(content: string): string {
   return `
@@ -24,9 +27,10 @@ function emailWrapper(content: string): string {
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-          <!-- Header -->
+          <!-- Header with Logo -->
           <tr>
             <td style="padding:24px 32px;text-align:center;border-bottom:1px solid ${BORDER};">
+              <img src="${LOGO_URL}" alt="GBH Capital" width="48" height="48" style="display:block;margin:0 auto 12px;width:48px;height:48px;" />
               <span style="font-size:22px;font-weight:700;color:${GOLD};letter-spacing:1px;">GBH CAPITAL</span>
             </td>
           </tr>
@@ -267,17 +271,22 @@ export async function sendTradeAlert(
   const html = buildTradeAlertHtml(trade);
   const subject = `${trade.action === "BUY" ? "New Purchase" : "Position Sold"}: ${trade.ticker} — ${trade.shares} shares @ $${trade.pricePerShare.toFixed(2)}`;
 
-  // Send to all members
-  const emails = recipients.map((r) => r.email);
+  // Send individual emails via batch API (avoids Gmail spam filters + protects recipient privacy)
+  const emailPayloads = recipients.map((r) => ({
+    from: EMAIL_FROM,
+    to: r.email,
+    subject,
+    html,
+  }));
 
   try {
-    await getResend().emails.send({
-      from: EMAIL_FROM,
-      to: emails,
-      subject,
-      html,
-    });
-    console.log(`Trade alert sent to ${emails.length} member(s)`);
+    // Resend batch supports up to 100 emails per call
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
+      const batch = emailPayloads.slice(i, i + BATCH_SIZE);
+      await getResend().batch.send(batch);
+    }
+    console.log(`Trade alert sent to ${recipients.length} member(s) via batch`);
   } catch (err) {
     console.error("Failed to send trade alert email:", err);
   }

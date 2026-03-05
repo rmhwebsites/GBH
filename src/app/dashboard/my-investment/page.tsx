@@ -73,6 +73,13 @@ export default function MyInvestmentPage() {
     []
   );
 
+  // Fetch all NAV history for the report
+  const { data: allNavData } = useSWR<{ history: NavSnapshot[] }>(
+    "/api/portfolio/nav-history?days=9999",
+    fetcher,
+    { refreshInterval: 60 * 60 * 1000 }
+  );
+
   const handleDownloadStatement = async () => {
     if (!data) return;
     setDownloading(true);
@@ -83,9 +90,10 @@ export default function MyInvestmentPage() {
           data.investments[0]?.member_name || "Fund Member",
         memberData: data,
         portfolio: portfolio || undefined,
+        navHistory: allNavData?.history || [],
       });
     } catch (err) {
-      console.error("Failed to generate statement:", err);
+      console.error("Failed to generate report:", err);
     }
     setDownloading(false);
   };
@@ -154,7 +162,7 @@ export default function MyInvestmentPage() {
           ) : (
             <Download className="h-4 w-4" />
           )}
-          Download Statement
+          Download Monthly Report
         </button>
       </div>
 

@@ -15,10 +15,12 @@ import {
   BarChart3,
   DollarSign,
   Bell,
+  Vote,
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
 import { useUnreadUpdates } from "@/hooks/useUnreadUpdates";
+import { useVotingConfig } from "@/hooks/useVotingConfig";
 
 const memberLinks = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const adminLinks = [
   { href: "/admin/members", label: "Members", icon: Settings },
   { href: "/admin/investments", label: "Investments", icon: DollarSign },
   { href: "/admin/updates", label: "Updates", icon: Bell },
+  { href: "/admin/voting", label: "Voting", icon: Vote },
 ];
 
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -42,6 +45,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const { signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { hasUnread, markAsRead } = useUnreadUpdates();
+  const { isActive: votingActive } = useVotingConfig();
 
   return (
     <>
@@ -120,6 +124,21 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
               </Link>
             );
           })}
+
+          {votingActive && (
+            <Link
+              href="/dashboard/vote"
+              onClick={() => setMobileOpen(false)}
+              className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                pathname === "/dashboard/vote"
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted hover:bg-card hover:text-foreground"
+              }`}
+            >
+              <Vote className="h-4 w-4" />
+              Vote
+            </Link>
+          )}
 
           {isAdmin && (
             <>

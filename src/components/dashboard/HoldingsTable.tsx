@@ -32,7 +32,7 @@ export function HoldingsTable({ holdings }: Props) {
         <table className="w-full" style={{ minWidth: "480px" }}>
           <thead>
             <tr className="border-b border-card-border text-left text-[10px] uppercase tracking-wider text-muted sm:text-xs">
-              <th className="sticky left-0 z-10 bg-[rgba(0,13,26,0.97)] px-3 py-2.5 font-medium backdrop-blur-xl sm:px-6 sm:py-3">
+              <th className="sticky left-0 z-10 bg-[rgba(0,13,26,0.85)] px-3 py-2.5 font-medium backdrop-blur-xl sm:px-6 sm:py-3">
                 Stock
               </th>
               <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Price</th>
@@ -53,7 +53,7 @@ export function HoldingsTable({ holdings }: Props) {
                   className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-white/[0.06]"
                 >
                   {/* Stock — sticky on scroll */}
-                  <td className="sticky left-0 z-10 bg-[rgba(0,13,26,0.97)] px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
+                  <td className="sticky left-0 z-10 bg-[rgba(0,13,26,0.85)] px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
                     <Link
                       href={`/dashboard/stock/${holding.ticker}`}
                       className="block"

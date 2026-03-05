@@ -26,6 +26,16 @@ export interface Database {
         Insert: Omit<FundUpdate, "id" | "created_at" | "updated_at">;
         Update: Partial<Omit<FundUpdate, "id">>;
       };
+      voting_config: {
+        Row: VotingConfig;
+        Insert: Omit<VotingConfig, "id" | "created_at" | "updated_at">;
+        Update: Partial<Omit<VotingConfig, "id">>;
+      };
+      votes: {
+        Row: Vote;
+        Insert: Omit<Vote, "id" | "created_at">;
+        Update: Partial<Omit<Vote, "id">>;
+      };
     };
   };
 }
@@ -150,4 +160,34 @@ export interface FundUpdate {
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface VotingConfig {
+  id: string;
+  is_active: boolean;
+  title: string;
+  description: string | null;
+  max_votes_per_member: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Vote {
+  id: string;
+  voter_memberstack_id: string;
+  voter_name: string;
+  candidate_memberstack_id: string;
+  candidate_name: string;
+  created_at: string;
+}
+
+export interface VotingCandidate {
+  memberstack_id: string;
+  name: string;
+}
+
+export interface VotingResult {
+  candidate_memberstack_id: string;
+  candidate_name: string;
+  vote_count: number;
 }
