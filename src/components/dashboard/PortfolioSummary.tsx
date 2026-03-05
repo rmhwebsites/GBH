@@ -90,7 +90,7 @@ export function PortfolioSummary({
     : isDayPositive;
 
   const displayLabel = isHovering
-    ? formatDateLabel(hoveredTime as string)
+    ? formatDateLabel(hoveredTime)
     : "Today";
 
   const nav = navData?.nav || 0;
@@ -251,10 +251,11 @@ export function PortfolioSummary({
   );
 }
 
-function formatDateLabel(timeStr: string): string {
+function formatDateLabel(timeStr: string | null): string {
+  if (!timeStr) return "Today";
   // timeStr is "YYYY-MM-DD"
-  const [year, month, day] = timeStr.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
+  const date = new Date(timeStr + "T00:00:00");
+  if (isNaN(date.getTime())) return "Today";
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
