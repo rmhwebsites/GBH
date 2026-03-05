@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { sendTradeAlert } from "@/lib/emails";
 
 export async function GET() {
   try {
@@ -104,6 +105,42 @@ export async function POST(request: NextRequest) {
           .update({ shares: newShares })
           .eq("id", existing.id);
       }
+    }
+
+    // Send trade alert email to all members (fire-and-forget)
+    try {
+      const { data: memberRows } = await supabase
+        .from("member_investments")
+        .select("member_email, member_name, memberstack_id");
+
+      if (memberRows && memberRows.length > 0) {
+        // Deduplicate by memberstack_id
+        const seen = new Set<string>();
+        const recipients: { email: string; name: string }[] = [];
+        for (const row of memberRows) {
+          if (!seen.has(row.memberstack_id)) {
+            seen.add(row.memberstack_id);
+            recipients.push({ email: row.member_email, name: row.member_name });
+          }
+        }
+
+        sendTradeAlert(
+          {
+            ticker: body.ticker.toUpperCase(),
+            companyName: body.company_name || body.ticker.toUpperCase(),
+            action: body.action,
+            shares: body.shares,
+            pricePerShare: body.price_per_share,
+            totalAmount: body.shares * body.price_per_share,
+            tradeDate:
+              body.trade_date || new Date().toISOString().split("T")[0],
+            notes: body.notes || undefined,
+          },
+          recipients
+        ).catch((err) => console.error("Trade alert email error:", err));
+      }
+    } catch (emailErr) {
+      console.error("Failed to queue trade alert email:", emailErr);
     }
 
     return NextResponse.json({ trade }, { status: 201 });
