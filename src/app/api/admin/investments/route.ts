@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
+import { getVerifiedTotalUnits, syncTotalUnits } from "@/lib/units";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -27,9 +28,12 @@ export async function POST(request: NextRequest) {
     let navPerUnit = 0;
     let unitsToGrant = 0;
 
+    // SAFETY: Use verified total units (cross-checked against member_investments)
+    const verification = await getVerifiedTotalUnits(supabase);
+    const verifiedTotalUnits = verification.totalMemberUnits;
+
     if (
-      metadata &&
-      metadata.total_units_outstanding > 0 &&
+      verifiedTotalUnits > 0 &&
       holdings &&
       holdings.length > 0
     ) {
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
       navPerUnit = calculateNAV(
         summary.totalValue,
-        metadata.total_units_outstanding
+        verifiedTotalUnits
       );
 
       if (navPerUnit > 0) {
@@ -113,23 +117,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Update total units outstanding
-    if (metadata) {
-      await supabase
-        .from("fund_metadata")
-        .update({
-          total_units_outstanding:
-            metadata.total_units_outstanding + unitsToGrant,
-        })
-        .eq("id", metadata.id);
-    } else {
-      // Create fund metadata if it doesn't exist
-      await supabase.from("fund_metadata").insert({
-        total_units_outstanding: unitsToGrant,
-        fund_inception_date:
-          body.investment_date || new Date().toISOString().split("T")[0],
-      });
-    }
+    // Sync total units from source of truth (member_investments table)
+    // This is safer than incremental math which can drift over time
+    await syncTotalUnits(supabase);
 
     return NextResponse.json(
       { investment: data, navPerUnit, unitsGranted: unitsToGrant },
@@ -185,23 +175,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Update total units outstanding (subtract the units that were removed)
-    const { data: metadata } = await supabase
-      .from("fund_metadata")
-      .select("*")
-      .limit(1)
-      .single();
-
-    if (metadata) {
-      const newUnits = Math.max(
-        0,
-        metadata.total_units_outstanding - investment.units_owned
-      );
-      await supabase
-        .from("fund_metadata")
-        .update({ total_units_outstanding: newUnits })
-        .eq("id", metadata.id);
-    }
+    // Sync total units from source of truth (member_investments table)
+    await syncTotalUnits(supabase);
 
     return NextResponse.json({ success: true });
   } catch (err) {

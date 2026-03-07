@@ -6,6 +6,7 @@ import {
   calculateNAV,
 } from "@/lib/calculations";
 import { requireAuth, isAuthError } from "@/lib/auth";
+import { getVerifiedTotalUnits } from "@/lib/units";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -26,25 +27,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get fund metadata
-    const { data: metadata, error: metaError } = await supabase
-      .from("fund_metadata")
-      .select("*")
-      .limit(1)
-      .single();
-
-    if (metaError) {
-      return NextResponse.json(
-        { error: metaError.message },
-        { status: 500 }
-      );
-    }
+    // SAFETY GUARD: Always verify total_units matches actual member units
+    const verification = await getVerifiedTotalUnits(supabase);
+    const totalUnits = verification.totalMemberUnits;
 
     if (!holdings || holdings.length === 0) {
       return NextResponse.json({
         nav: 0,
         totalValue: 0,
-        totalUnits: metadata?.total_units_outstanding || 0,
+        totalUnits,
       });
     }
 
@@ -60,15 +51,18 @@ export async function GET(request: NextRequest) {
       quotes,
       cashBalance
     );
-    const nav = calculateNAV(
-      summary.totalValue,
-      metadata.total_units_outstanding
-    );
+    const nav = calculateNAV(summary.totalValue, totalUnits);
 
     return NextResponse.json({
       nav,
       totalValue: summary.totalValue,
-      totalUnits: metadata.total_units_outstanding,
+      totalUnits,
+      ...(verification.corrected
+        ? {
+            unitsCorrected: true,
+            previousUnits: verification.metadataUnits,
+          }
+        : {}),
     });
   } catch (err) {
     console.error("Error calculating NAV:", err);

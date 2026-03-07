@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
+import { syncTotalUnits } from "@/lib/units";
 
 /**
  * Batch endpoint to delete all existing investment records and re-enter
@@ -8,6 +9,9 @@ import { requireAdmin, isAuthError } from "@/lib/auth";
  *
  * Body: { investments: Array<{ memberstack_id, member_name, member_email, amount, date, nav? }> }
  * If nav is provided, units = amount / nav. Otherwise units = amount (1:1 at $1.00 NAV).
+ *
+ * IMPORTANT: total_units_outstanding is ALWAYS set to the sum of member units.
+ * It must never be set to portfolio cost basis or any other value.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -82,32 +86,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 4: Calculate total member units and update fund_metadata
-    const totalUnits = insertData.reduce((sum, inv) => sum + inv.units_owned, 0);
+    // Step 4: Sync total_units_outstanding to actual member units
+    // This is the ONLY correct way — always sum from member_investments
+    const totalUnits = await syncTotalUnits(supabase);
 
-    if (metadata) {
-      await supabase
-        .from("fund_metadata")
-        .update({ total_units_outstanding: totalUnits })
-        .eq("id", metadata.id);
-    }
-
-    // Step 5: Auto-recalibrate NAV (set total_units = portfolio cost basis)
+    // Calculate current NAV for informational purposes
+    let currentNAV = 0;
     const { data: holdings } = await supabase
       .from("portfolio_holdings")
       .select("*")
       .eq("is_active", true);
 
-    let recalibrated = false;
-    let newNAV = 0;
-
-    if (holdings && holdings.length > 0) {
+    if (holdings && holdings.length > 0 && totalUnits > 0) {
       const { getQuotes } = await import("@/lib/yahoo");
       const { calculatePortfolioSummary } = await import(
         "@/lib/calculations"
       );
 
-      // Separate cash from stock holdings
       const cashHolding = holdings.find((h: { ticker: string }) => h.ticker === "CASH");
       const stockHoldings = holdings.filter((h: { ticker: string }) => h.ticker !== "CASH");
       const cashBalance = cashHolding?.shares || 0;
@@ -115,25 +110,14 @@ export async function POST(request: NextRequest) {
       const tickers = stockHoldings.map((h: { ticker: string }) => h.ticker);
       const quotes = tickers.length > 0 ? await getQuotes(tickers) : [];
       const summary = calculatePortfolioSummary(stockHoldings, quotes, cashBalance);
-      const portfolioCostBasis = summary.totalCost;
-
-      if (metadata) {
-        await supabase
-          .from("fund_metadata")
-          .update({ total_units_outstanding: portfolioCostBasis })
-          .eq("id", metadata.id);
-      }
-
-      newNAV = summary.totalValue / portfolioCostBasis;
-      recalibrated = true;
+      currentNAV = summary.totalValue / totalUnits;
     }
 
     return NextResponse.json({
       success: true,
       recordsInserted: inserted?.length || 0,
       totalMemberUnits: totalUnits,
-      recalibrated,
-      newNAV,
+      currentNAV,
     });
   } catch (err) {
     console.error("Batch investment error:", err);

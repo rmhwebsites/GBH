@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { getHistoricalData, getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
 import { requireAuth, isAuthError } from "@/lib/auth";
+import { getVerifiedTotalUnits } from "@/lib/units";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -68,11 +69,13 @@ export async function GET(request: NextRequest) {
 
     const navHistory = navHistoryRes.data || [];
     const holdings = holdingsRes.data || [];
-    const metadata = metadataRes.data;
     const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
     const cashHolding = holdings.find((h) => h.ticker === "CASH");
     const cashBalance = cashHolding?.shares || 0;
-    const totalUnits = metadata?.total_units_outstanding || 0;
+
+    // SAFETY GUARD: Always use verified total units
+    const verification = await getVerifiedTotalUnits(supabase);
+    const totalUnits = verification.totalMemberUnits;
 
     // ── Calculate live portfolio data (single quote fetch) ─────────────
     let liveNavPerUnit = 0;

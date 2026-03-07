@@ -4,6 +4,7 @@ import { google } from "googleapis";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
 import { verifyAuth } from "@/lib/auth";
+import { getVerifiedTotalUnits } from "@/lib/units";
 
 /**
  * Daily backup endpoint that:
@@ -82,7 +83,9 @@ export async function GET(request: NextRequest) {
     const quotes = tickers.length > 0 ? await getQuotes(tickers) : [];
     const summary = calculatePortfolioSummary(stockHoldings, quotes, cashBalance);
 
-    const totalUnits = metadata?.total_units_outstanding || 0;
+    // SAFETY GUARD: Always use verified total units
+    const verification = await getVerifiedTotalUnits(supabase);
+    const totalUnits = verification.totalMemberUnits;
     const navPerUnit = calculateNAV(summary.totalValue, totalUnits);
 
     const now = new Date();

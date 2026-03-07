@@ -7,6 +7,7 @@ import {
   calculateNAV,
   calculateMemberData,
 } from "@/lib/calculations";
+import { getVerifiedTotalUnits } from "@/lib/units";
 
 export async function GET(
   request: NextRequest,
@@ -47,14 +48,12 @@ export async function GET(
       .select("*")
       .eq("is_active", true);
 
-    const { data: metadata } = await supabase
-      .from("fund_metadata")
-      .select("*")
-      .limit(1)
-      .single();
+    // SAFETY GUARD: Always use verified total units
+    const verification = await getVerifiedTotalUnits(supabase);
+    const totalUnits = verification.totalMemberUnits;
 
     let navPerUnit = 0;
-    if (holdings && holdings.length > 0 && metadata) {
+    if (holdings && holdings.length > 0 && totalUnits > 0) {
       // Separate cash from stock holdings
       const cashHolding = holdings.find((h) => h.ticker === "CASH");
       const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
@@ -67,10 +66,7 @@ export async function GET(
         quotes,
         cashBalance
       );
-      navPerUnit = calculateNAV(
-        summary.totalValue,
-        metadata.total_units_outstanding
-      );
+      navPerUnit = calculateNAV(summary.totalValue, totalUnits);
     }
 
     const memberData = calculateMemberData(investments, navPerUnit);

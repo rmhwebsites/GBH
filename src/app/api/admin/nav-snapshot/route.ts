@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
 import { verifyAuth } from "@/lib/auth";
+import { getVerifiedTotalUnits } from "@/lib/units";
 
 /**
  * Saves a NAV snapshot to Supabase nav_history.
@@ -10,6 +11,9 @@ import { verifyAuth } from "@/lib/auth";
  * Use this to seed initial data or trigger manual snapshots.
  *
  * Protected by CRON_SECRET or ADMIN check.
+ *
+ * SAFETY: Always verifies total_units_outstanding matches actual member
+ * units before calculating NAV. Auto-corrects if mismatched.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,23 +31,31 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Fetch holdings and metadata
-    const [holdingsRes, metadataRes] = await Promise.all([
-      supabase.from("portfolio_holdings").select("*").eq("is_active", true),
-      supabase.from("fund_metadata").select("*").limit(1).single(),
-    ]);
+    // Fetch holdings
+    const { data: holdings } = await supabase
+      .from("portfolio_holdings")
+      .select("*")
+      .eq("is_active", true);
 
-    const holdings = holdingsRes.data || [];
-    const metadata = metadataRes.data;
-    const stockHoldings = holdings.filter((h) => h.ticker !== "CASH");
-    const cashHolding = holdings.find((h) => h.ticker === "CASH");
+    const allHoldings = holdings || [];
+    const stockHoldings = allHoldings.filter((h) => h.ticker !== "CASH");
+    const cashHolding = allHoldings.find((h) => h.ticker === "CASH");
     const cashBalance = cashHolding?.shares || 0;
-    const totalUnits = metadata?.total_units_outstanding || 0;
 
     if (stockHoldings.length === 0) {
       return NextResponse.json(
         { error: "No active stock holdings found" },
         { status: 400 }
+      );
+    }
+
+    // SAFETY GUARD: Always verify and use actual member units
+    const verification = await getVerifiedTotalUnits(supabase);
+    const totalUnits = verification.totalMemberUnits;
+
+    if (verification.corrected) {
+      console.warn(
+        `[NAV-SNAPSHOT] Auto-corrected total_units from ${verification.metadataUnits} to ${verification.totalMemberUnits}`
       );
     }
 
@@ -102,6 +114,9 @@ export async function POST(request: NextRequest) {
         ),
         numHoldings: stockHoldings.length,
       },
+      ...(verification.corrected
+        ? { unitsCorrected: true, previousUnits: verification.metadataUnits }
+        : {}),
     });
   } catch (err) {
     console.error("NAV snapshot error:", err);
