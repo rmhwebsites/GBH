@@ -5,6 +5,7 @@ import { getQuotes } from "@/lib/yahoo";
 import { calculatePortfolioSummary, calculateNAV } from "@/lib/calculations";
 import { verifyAuth } from "@/lib/auth";
 import { getVerifiedTotalUnits } from "@/lib/units";
+import { applyBrandFormatting } from "@/lib/sheets-format";
 
 /**
  * Daily backup endpoint that:
@@ -537,6 +538,9 @@ export async function GET(request: NextRequest) {
             ],
           },
         });
+
+        // Apply brand formatting if not already done
+        await applyBrandFormatting(sheets, spreadsheetId);
 
         sheetsBackedUp = true;
       } catch (sheetErr) {
