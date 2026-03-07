@@ -2,7 +2,11 @@
   "crons": [
     {
       "path": "/api/admin/backup",
-      "schedule": "0 4 * * *"
+      "schedule": "0 4 * * 1-5"
+    },
+    {
+      "path": "/api/admin/nav-snapshot",
+      "schedule": "0 21 * * 1-5"
     }
   ]
 }

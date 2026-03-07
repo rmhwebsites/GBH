@@ -10,12 +10,13 @@ import { getVerifiedTotalUnits } from "@/lib/units";
  * Lightweight version of the full backup — no Google Sheets dependency.
  * Use this to seed initial data or trigger manual snapshots.
  *
+ * Supports both GET (for Vercel cron) and POST (for manual triggers).
  * Protected by CRON_SECRET or ADMIN check.
  *
  * SAFETY: Always verifies total_units_outstanding matches actual member
  * units before calculating NAV. Auto-corrects if mismatched.
  */
-export async function POST(request: NextRequest) {
+async function handleSnapshot(request: NextRequest) {
   try {
     // Verify authorization: accept CRON_SECRET or admin session
     const authHeader = request.headers.get("authorization");
@@ -128,4 +129,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// GET handler for Vercel cron
+export async function GET(request: NextRequest) {
+  return handleSnapshot(request);
+}
+
+// POST handler for manual triggers
+export async function POST(request: NextRequest) {
+  return handleSnapshot(request);
 }
