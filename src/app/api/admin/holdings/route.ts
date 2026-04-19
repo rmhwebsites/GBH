@@ -69,6 +69,17 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = createServerClient();
 
+    // Auto-deactivate fully sold positions so they don't appear in the
+    // portfolio or downloadable reports.
+    const sharesNumber =
+      typeof body.shares === "number" ? body.shares : Number(body.shares);
+    const soldOut =
+      body.ticker?.toUpperCase() !== "CASH" &&
+      Number.isFinite(sharesNumber) &&
+      sharesNumber <= 0;
+    const resolvedIsActive =
+      body.is_active === undefined ? (soldOut ? false : true) : body.is_active;
+
     const { data, error } = await supabase
       .from("portfolio_holdings")
       .update({
@@ -76,7 +87,7 @@ export async function PUT(request: NextRequest) {
         company_name: body.company_name,
         shares: body.shares,
         avg_cost_basis: body.avg_cost_basis,
-        is_active: body.is_active,
+        is_active: soldOut ? false : resolvedIsActive,
       })
       .eq("id", body.id)
       .select()

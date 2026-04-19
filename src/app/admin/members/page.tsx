@@ -10,9 +10,12 @@ import {
   Check,
   Users,
   ArrowRight,
+  Shield,
+  ShieldOff,
 } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import type { MemberInvestment } from "@/types/database";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -25,6 +28,12 @@ interface MemberSummary {
   recordCount: number;
 }
 
+interface AdminMember {
+  memberstack_id: string;
+  added_at: string;
+  added_by: string | null;
+}
+
 export default function AdminMembersPage() {
   const { data, isLoading, mutate } = useSWR<{ members: MemberInvestment[] }>(
     "/api/admin/members",
@@ -34,12 +43,17 @@ export default function AdminMembersPage() {
     "/api/portfolio/nav",
     fetcher
   );
+  const { data: adminData, mutate: mutateAdmins } = useSWR<{
+    admins: AdminMember[];
+  }>("/api/admin/admin-members", fetcher);
+  const { memberId: currentMemberId } = useIsAdmin();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     member_name: "",
     member_email: "",
   });
   const [saving, setSaving] = useState(false);
+  const [togglingAdminId, setTogglingAdminId] = useState<string | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -52,6 +66,9 @@ export default function AdminMembersPage() {
 
   const members = data?.members || [];
   const navPerUnit = navData?.nav || 0;
+  const adminIdSet = new Set(
+    (adminData?.admins || []).map((a) => a.memberstack_id)
+  );
 
   // Aggregate all records per memberstack_id
   const memberSummaries: MemberSummary[] = [];
@@ -111,6 +128,36 @@ export default function AdminMembersPage() {
       member_name: summary.name,
       member_email: summary.email,
     });
+  };
+
+  const handleToggleAdmin = async (
+    memberstackId: string,
+    currentlyAdmin: boolean
+  ) => {
+    setTogglingAdminId(memberstackId);
+    try {
+      const method = currentlyAdmin ? "DELETE" : "POST";
+      const res = await fetch("/api/admin/admin-members", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberstack_id: memberstackId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to update admin access");
+      }
+      mutateAdmins();
+      showMessage(
+        "success",
+        currentlyAdmin ? "Admin access removed" : "Admin access granted"
+      );
+    } catch (err) {
+      showMessage(
+        "error",
+        err instanceof Error ? err.message : "Failed to update admin access"
+      );
+    }
+    setTogglingAdminId(null);
   };
 
   // Fund totals
@@ -265,6 +312,7 @@ export default function AdminMembersPage() {
                   <th className="px-4 py-3 font-medium text-right">
                     Return
                   </th>
+                  <th className="px-4 py-3 font-medium text-center">Admin</th>
                   <th className="px-4 py-3 font-medium text-right">
                     Actions
                   </th>
@@ -359,6 +407,50 @@ export default function AdminMembersPage() {
                           {returnPct >= 0 ? "+" : ""}
                           {returnPct.toFixed(2)}%
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {(() => {
+                          const isMemberAdmin = adminIdSet.has(m.memberstackId);
+                          const isSelf = m.memberstackId === currentMemberId;
+                          const isToggling =
+                            togglingAdminId === m.memberstackId;
+                          return (
+                            <button
+                              onClick={() =>
+                                handleToggleAdmin(
+                                  m.memberstackId,
+                                  isMemberAdmin
+                                )
+                              }
+                              disabled={isToggling || isSelf}
+                              title={
+                                isSelf
+                                  ? "You can't change your own admin access"
+                                  : isMemberAdmin
+                                    ? "Remove admin access"
+                                    : "Grant admin access"
+                              }
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                isMemberAdmin
+                                  ? "bg-gold/15 text-gold hover:bg-gold/25"
+                                  : "bg-card-glass text-muted hover:bg-card-glass/80 hover:text-foreground"
+                              } ${
+                                isToggling || isSelf
+                                  ? "cursor-not-allowed opacity-60"
+                                  : ""
+                              }`}
+                            >
+                              {isToggling ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isMemberAdmin ? (
+                                <Shield className="h-3 w-3" />
+                              ) : (
+                                <ShieldOff className="h-3 w-3" />
+                              )}
+                              {isMemberAdmin ? "Admin" : "Member"}
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {isEditing ? (

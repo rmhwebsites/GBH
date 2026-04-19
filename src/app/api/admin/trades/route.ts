@@ -100,8 +100,10 @@ export async function POST(request: NextRequest) {
       }
     } else if (body.action === "SELL" && existing) {
       const newShares = existing.shares - body.shares;
-      if (newShares <= 0) {
-        // Sold all shares
+      // Treat tiny residuals as fully sold so the position is excluded from
+      // the portfolio / downloadable reports. portfolio_holdings.shares is
+      // DECIMAL(15,6), so anything under 1e-6 is noise.
+      if (newShares <= 1e-6) {
         await supabase
           .from("portfolio_holdings")
           .update({ shares: 0, is_active: false })

@@ -3,15 +3,16 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { useAuth } from "@memberstack/react";
-import { isAdmin } from "@/lib/memberstack";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
 
 function AdminContent({ children }: { children: React.ReactNode }) {
   const { userId, status } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useIsAdmin();
 
-  // Wait for userId to be available before checking admin status
-  if (!userId || status === "LOADING") {
+  // Wait for userId and admin status to be available
+  if (!userId || status === "LOADING" || adminLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -22,9 +23,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const admin = isAdmin(userId);
-
-  if (!admin) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background">
         <Sidebar isAdmin={false} />

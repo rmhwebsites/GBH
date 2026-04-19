@@ -2,16 +2,14 @@
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Sidebar } from "@/components/ui/Sidebar";
-import { useAuth } from "@memberstack/react";
-import { isAdmin } from "@/lib/memberstack";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
-  const { userId } = useAuth();
-  const admin = userId ? isAdmin(userId) : false;
+  const { isAdmin } = useIsAdmin();
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar isAdmin={admin} />
+      <Sidebar isAdmin={isAdmin} />
       <main className="lg:pl-64">
         <div className="mx-auto max-w-7xl px-4 pt-16 pb-8 sm:px-6 lg:px-8 lg:pt-8">
           {children}

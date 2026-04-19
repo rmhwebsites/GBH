@@ -19,7 +19,7 @@ export function calculatePortfolioSummary(
   let totalDayChange = 0;
 
   const enrichedHoldings: HoldingWithQuote[] = holdings
-    .filter((h) => h.is_active && h.ticker !== "CASH")
+    .filter((h) => h.is_active && h.shares > 0 && h.ticker !== "CASH")
     .map((holding) => {
       const quote = quoteMap.get(holding.ticker);
       const currentValue = quote ? holding.shares * quote.price : 0;

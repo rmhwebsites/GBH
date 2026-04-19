@@ -402,7 +402,12 @@ export function generateStatement({
   // ════════════════════════════════════════════
   // PORTFOLIO HOLDINGS
   // ════════════════════════════════════════════
-  if (portfolio && portfolio.holdings.length > 0) {
+  // Only include active holdings with live share quantities; excludes fully sold positions.
+  const activeHoldings = (portfolio?.holdings || []).filter(
+    (h) => h.is_active !== false && h.shares > 0
+  );
+
+  if (portfolio && activeHoldings.length > 0) {
     if (y > pageHeight - 60) {
       doc.addPage();
       y = margin;
@@ -419,7 +424,7 @@ export function generateStatement({
     doc.text(`  As of ${statementDate}`, margin + 37, y);
     y += 2;
 
-    const holdingRows = portfolio.holdings.map((h) => {
+    const holdingRows = activeHoldings.map((h) => {
       const costBasis = h.shares * h.avg_cost_basis;
       const unrealized = h.currentValue - costBasis;
       const sign = unrealized >= 0 ? "+" : "";
@@ -532,7 +537,7 @@ export function generateStatement({
   // ════════════════════════════════════════════
   // KEY POSITIONS (Top 5 Holdings)
   // ════════════════════════════════════════════
-  if (portfolio && portfolio.holdings.length > 0) {
+  if (portfolio && activeHoldings.length > 0) {
     if (y > pageHeight - 50) {
       doc.addPage();
       y = margin;
@@ -550,7 +555,7 @@ export function generateStatement({
     y += 6;
 
     // Take top 5 by weight
-    const topHoldings = [...portfolio.holdings]
+    const topHoldings = [...activeHoldings]
       .sort((a, b) => b.weight - a.weight)
       .slice(0, 5);
 
