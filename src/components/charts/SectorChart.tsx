@@ -8,12 +8,16 @@ import {
   type GICSSector,
 } from "@/lib/sectors";
 import { formatCurrency } from "@/lib/calculations";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface Props {
   holdings: HoldingWithQuote[];
 }
 
 export function SectorChart({ holdings }: Props) {
+  const { resolvedTheme } = useTheme();
+  const chartColors = getChartTheme(resolvedTheme);
   const allocations = calculateSectorAllocations(holdings);
 
   if (allocations.length === 0) return null;
@@ -53,15 +57,15 @@ export function SectorChart({ holdings }: Props) {
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: "#0a1628",
-                border: "1px solid rgba(255,255,255,0.15)",
+                backgroundColor: chartColors.tooltipBg,
+                border: `1px solid ${chartColors.tooltipBorder}`,
                 borderRadius: "8px",
                 fontSize: "13px",
                 maxWidth: "280px",
                 padding: "8px 12px",
               }}
-              itemStyle={{ color: "#f0f0f0" }}
-              labelStyle={{ color: "#f0f0f0" }}
+              itemStyle={{ color: chartColors.tooltipText }}
+              labelStyle={{ color: chartColors.tooltipText }}
               cursor={{ fill: "rgba(206, 156, 92, 0.08)" }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={((value: any, _name: any, props: any) => {

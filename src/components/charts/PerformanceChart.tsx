@@ -7,6 +7,8 @@ import {
   ColorType,
   LineSeries,
 } from "lightweight-charts";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface PerformancePoint {
   time: string;
@@ -22,9 +24,11 @@ interface Props {
 export function PerformanceChart({ portfolio, sp500, period }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
+    const colors = getChartTheme(resolvedTheme);
 
     // Clean up previous chart
     if (chartRef.current) {
@@ -39,29 +43,29 @@ export function PerformanceChart({ portfolio, sp500, period }: Props) {
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.85)",
+        textColor: colors.textColor,
         fontFamily: "'Roboto', sans-serif",
         fontSize: isMobile ? 10 : 12,
       },
       grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.05)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.05)" },
+        vertLines: { color: colors.gridColor },
+        horzLines: { color: colors.gridColor },
       },
       crosshair: {
         vertLine: {
-          color: "rgba(206, 156, 92, 0.4)",
+          color: colors.crosshairColor,
           labelBackgroundColor: "#CE9C5C",
         },
         horzLine: {
-          color: "rgba(206, 156, 92, 0.4)",
+          color: colors.crosshairColor,
           labelBackgroundColor: "#CE9C5C",
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: colors.borderColor,
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: colors.borderColor,
         timeVisible: false,
       },
       width: chartContainerRef.current.clientWidth,
@@ -112,7 +116,7 @@ export function PerformanceChart({ portfolio, sp500, period }: Props) {
         chartRef.current = null;
       }
     };
-  }, [portfolio, sp500, period]);
+  }, [portfolio, sp500, period, resolvedTheme]);
 
   return <div ref={chartContainerRef} />;
 }

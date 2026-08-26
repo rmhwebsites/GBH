@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
+import { DECISION_CHOICES, isDecisionChoice } from "@/lib/voting";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -60,17 +61,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { candidateIds, voterName } = body as {
-      candidateIds: string[];
-      voterName: string;
+    const { candidateIds, voterName, choice } = body as {
+      candidateIds?: string[];
+      voterName?: string;
+      choice?: string;
     };
-
-    if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
-      return NextResponse.json(
-        { error: "Must select at least one candidate" },
-        { status: 400 }
-      );
-    }
 
     const supabase = createServerClient();
 
@@ -114,17 +109,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Check max votes
-    if (candidateIds.length > config.max_votes_per_member) {
-      return NextResponse.json(
-        {
-          error: `Maximum ${config.max_votes_per_member} votes allowed`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // 3. Check voter hasn't already voted in this session
+    // 2. Check voter hasn't already voted in this session
     const { data: existingVotes } = await supabase
       .from("votes")
       .select("id")
@@ -139,7 +124,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Validate all candidates exist
+    // 3. Resolve the voter's real name for the audit log
+    const { data: voterRows } = await supabase
+      .from("member_investments")
+      .select("member_name")
+      .eq("memberstack_id", auth.memberId)
+      .limit(1);
+    const resolvedVoterName =
+      voterRows?.[0]?.member_name || voterName || "Unknown";
+
+    // ── Decision (Confirm/Reject) vote ──
+    if ((config.vote_type || "candidate") === "decision") {
+      if (!isDecisionChoice(choice)) {
+        return NextResponse.json(
+          { error: "Vote must be either Confirm or Reject" },
+          { status: 400 }
+        );
+      }
+
+      const { error: insertError } = await supabase.from("votes").insert({
+        voter_memberstack_id: auth.memberId,
+        voter_name: resolvedVoterName,
+        candidate_memberstack_id: DECISION_CHOICES[choice].id,
+        candidate_name: DECISION_CHOICES[choice].label,
+        voting_session_id: sessionId,
+      });
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          return NextResponse.json(
+            { error: "You have already voted. Votes cannot be changed." },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json(
+          { error: insertError.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true, votesCount: 1 });
+    }
+
+    // ── Candidate vote ──
+    if (
+      !candidateIds ||
+      !Array.isArray(candidateIds) ||
+      candidateIds.length === 0
+    ) {
+      return NextResponse.json(
+        { error: "Must select at least one candidate" },
+        { status: 400 }
+      );
+    }
+
+    // 4. Check max votes
+    if (candidateIds.length > config.max_votes_per_member) {
+      return NextResponse.json(
+        {
+          error: `Maximum ${config.max_votes_per_member} votes allowed`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 5. Validate all candidates exist
     const { data: validCandidates } = await supabase
       .from("member_investments")
       .select("memberstack_id, member_name")
@@ -163,10 +212,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Insert all votes with session ID
+    // 6. Insert all votes with session ID
     const voteRecords = candidateIds.map((candidateId) => ({
       voter_memberstack_id: auth.memberId,
-      voter_name: voterName || "Unknown",
+      voter_name: resolvedVoterName,
       candidate_memberstack_id: candidateId,
       candidate_name: candidateNameMap.get(candidateId) || "Unknown",
       voting_session_id: sessionId,

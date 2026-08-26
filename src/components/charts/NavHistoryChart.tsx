@@ -7,6 +7,8 @@ import {
   ColorType,
   AreaSeries,
 } from "lightweight-charts";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface DataPoint {
   time: string;
@@ -21,6 +23,7 @@ interface Props {
 export function NavHistoryChart({ data, onCrosshairMove }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const { resolvedTheme } = useTheme();
 
   const handleCrosshairMove = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,18 +58,19 @@ export function NavHistoryChart({ data, onCrosshairMove }: Props) {
 
     const goldColor = "#CE9C5C";
     const isMobile = window.innerWidth < 640;
+    const colors = getChartTheme(resolvedTheme);
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.4)",
+        textColor: colors.textColorSubtle,
         fontFamily: "'Inter', 'Roboto', sans-serif",
         fontSize: isMobile ? 9 : 11,
       },
       grid: {
         vertLines: { visible: false },
         horzLines: {
-          color: "rgba(255, 255, 255, 0.04)",
+          color: colors.gridColor,
           style: 1,
         },
       },
@@ -150,7 +154,7 @@ export function NavHistoryChart({ data, onCrosshairMove }: Props) {
         chartRef.current = null;
       }
     };
-  }, [data, handleCrosshairMove]);
+  }, [data, handleCrosshairMove, resolvedTheme]);
 
   if (data.length === 0) {
     return (

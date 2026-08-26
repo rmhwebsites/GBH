@@ -66,6 +66,32 @@
 - [x] Mobile responsive with horizontal scroll tables
 - [x] Loading states and error handling
 
+### Phase 5: Voting, Attendance & Theming (Aug 2026)
+- [x] Decision voting mode — Confirm/Reject votes on proposals
+  - `vote_type` on voting_config ('candidate' | 'decision'), admin type selector
+  - Decision votes stored in existing `votes` table via sentinel IDs
+  - `voting_sessions` metadata table so history remembers each session's question
+  - Confirm/Reject ballot UI, live tally, outcome badge (simple majority — policy in `src/lib/voting.ts`)
+  - Requires: run `supabase/migration_decision_voting.sql`
+- [x] Meeting attendance tracking (`/admin/attendance`)
+  - Record meetings with member checklist, edit/delete past meetings
+  - Per-member attendance rates and meeting history
+  - Requires: run `supabase/migration_attendance.sql`
+- [x] Auto light/dark theme
+  - Follows system preference by default; Auto → Light → Dark toggle in sidebar
+  - Light palette: warm paper + navy ink + deepened gold (WCAG-friendlier)
+  - Theme-aware charts (lightweight-charts + Recharts tooltips)
+  - No-flash init via `public/theme-init.js`
+- [x] Voter audit log now records real member names (was hardcoded "Member")
+- [x] Member investment contributions via Stripe (ACH)
+  - Admin `/admin/funding`: create investment windows (open/close dates, min/max)
+  - Member `/dashboard/invest`: submit amount during open window → Stripe Checkout (us_bank_account)
+  - Webhook `/api/stripe/webhook` tracks ACH lifecycle (pending → processing → paid / failed)
+  - Admin "Process at NAV" converts paid submissions into member_investments units
+    (shared `src/lib/investments.ts` — same math as manual admin entry)
+  - Requires: run `supabase/migration_investment_windows.sql`, set STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET, NEXT_PUBLIC_APP_URL; add webhook endpoint in Stripe dashboard
+
 ## In Progress
 
 - [ ] Transaction email alerts to members
@@ -74,7 +100,6 @@
 ## Planned
 
 - [ ] Push notifications for large market moves
-- [ ] Dark/light theme toggle
 - [ ] Export portfolio data to CSV
 - [ ] Performance attribution analysis
 - [ ] Dividend tracking

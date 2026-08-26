@@ -16,11 +16,18 @@ import {
   DollarSign,
   Bell,
   Vote,
+  CalendarCheck,
+  Sun,
+  Moon,
+  MonitorSmartphone,
+  Landmark,
 } from "lucide-react";
 import { useAuth } from "@memberstack/react";
 import { useState } from "react";
 import { useUnreadUpdates } from "@/hooks/useUnreadUpdates";
 import { useVotingConfig } from "@/hooks/useVotingConfig";
+import { useInvestmentWindow } from "@/hooks/useInvestmentWindow";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 const memberLinks = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
@@ -38,6 +45,8 @@ const adminLinks = [
   { href: "/admin/investments", label: "Investments", icon: DollarSign },
   { href: "/admin/updates", label: "Updates", icon: Bell },
   { href: "/admin/voting", label: "Voting", icon: Vote },
+  { href: "/admin/attendance", label: "Attendance", icon: CalendarCheck },
+  { href: "/admin/funding", label: "Funding", icon: Landmark },
 ];
 
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -46,6 +55,16 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { hasUnread, markAsRead } = useUnreadUpdates();
   const { isActive: votingActive } = useVotingConfig();
+  const { isOpen: investOpen, isUpcoming: investUpcoming } =
+    useInvestmentWindow();
+  const { mode, setMode } = useTheme();
+
+  const cycleTheme = () =>
+    setMode(mode === "auto" ? "light" : mode === "light" ? "dark" : "auto");
+  const ThemeIcon =
+    mode === "auto" ? MonitorSmartphone : mode === "light" ? Sun : Moon;
+  const themeLabel =
+    mode === "auto" ? "Auto" : mode === "light" ? "Light" : "Dark";
 
   return (
     <>
@@ -125,6 +144,27 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
             );
           })}
 
+          {(investOpen || investUpcoming) && (
+            <Link
+              href="/dashboard/invest"
+              onClick={() => setMobileOpen(false)}
+              className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                pathname === "/dashboard/invest"
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted hover:bg-card hover:text-foreground"
+              }`}
+            >
+              <Landmark className="h-4 w-4" />
+              Invest
+              {investOpen && pathname !== "/dashboard/invest" && (
+                <span className="ml-auto flex h-2 w-2">
+                  <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-gain opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-gain" />
+                </span>
+              )}
+            </Link>
+          )}
+
           {votingActive && (
             <Link
               href="/dashboard/vote"
@@ -168,8 +208,19 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
           )}
         </nav>
 
-        {/* Logout */}
+        {/* Theme + Logout */}
         <div className="border-t border-card-border px-3 py-4">
+          <button
+            onClick={cycleTheme}
+            title="Cycle theme: Auto → Light → Dark"
+            className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-foreground"
+          >
+            <ThemeIcon className="h-4 w-4" />
+            Theme
+            <span className="ml-auto rounded-full bg-card px-2 py-0.5 text-[11px] font-semibold text-gold">
+              {themeLabel}
+            </span>
+          </button>
           <button
             onClick={() => signOut().then(() => window.location.href = "/login")}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-foreground"

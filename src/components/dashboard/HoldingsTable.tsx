@@ -50,7 +50,7 @@ export function HoldingsTable({ holdings }: Props) {
               return (
                 <tr
                   key={holding.id}
-                  className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-white/[0.06]"
+                  className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-highlight"
                 >
                   {/* Stock — sticky on scroll */}
                   <td className="sticky left-0 z-10 bg-[rgba(0,13,26,0.85)] px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">

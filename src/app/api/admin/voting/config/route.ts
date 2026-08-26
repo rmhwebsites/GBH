@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest) {
     // Get existing config (include is_active to detect toggle-on)
     const { data: existing } = await supabase
       .from("voting_config")
-      .select("id, is_active, voting_session_id")
+      .select("id, is_active, voting_session_id, vote_type")
       .limit(1)
       .single();
 
@@ -68,6 +68,13 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
+    if (body.vote_type === "candidate" || body.vote_type === "decision") {
+      updateData.vote_type = body.vote_type;
+    }
+
+    const willBeActive =
+      typeof body.is_active === "boolean" ? body.is_active : existing.is_active;
+
     if (typeof body.is_active === "boolean") {
       updateData.is_active = body.is_active;
 
@@ -76,6 +83,17 @@ export async function PUT(request: NextRequest) {
       if (body.is_active && !existing.is_active) {
         updateData.voting_session_id = randomUUID();
       }
+    }
+
+    // Changing the vote type while voting is live also starts a new session —
+    // candidate votes and confirm/reject votes must never share a tally
+    if (
+      willBeActive &&
+      existing.is_active &&
+      updateData.vote_type &&
+      updateData.vote_type !== (existing.vote_type || "candidate")
+    ) {
+      updateData.voting_session_id = randomUUID();
     }
     if (typeof body.title === "string") {
       updateData.title = body.title;
@@ -105,6 +123,17 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Record session metadata so history remembers what this session asked.
+    // Best-effort: ignore failures (e.g. migration not yet run).
+    if (data.voting_session_id) {
+      await supabase.from("voting_sessions").upsert({
+        session_id: data.voting_session_id,
+        vote_type: data.vote_type || "candidate",
+        title: data.title || "",
+        description: data.description,
+      });
     }
 
     return NextResponse.json(data);

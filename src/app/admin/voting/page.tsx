@@ -13,20 +13,32 @@ import {
   Clock,
   AlertCircle,
   ChevronDown,
-  ChevronUp,
   History,
   Vote,
   ArrowLeft,
   User,
+  Scale,
 } from "lucide-react";
 import Image from "next/image";
-import type { VotingConfig, VotingResult } from "@/types/database";
+import type { VotingConfig, VotingResult, VoteType } from "@/types/database";
 import type { MemberInvestment } from "@/types/database";
 import {
   getMemberPhotoUrl,
   getInitials,
   getAvatarColor,
 } from "@/lib/memberPhotos";
+import { DecisionTallyCard } from "@/components/voting/DecisionTallyCard";
+import {
+  getDecisionOutcome,
+  getDecisionTally,
+  isDecisionResults,
+} from "@/lib/voting";
+
+const OUTCOME_LABELS = {
+  confirmed: { label: "Confirmed", color: "text-gain" },
+  rejected: { label: "Rejected", color: "text-loss" },
+  tied: { label: "Tied", color: "text-muted" },
+} as const;
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -80,8 +92,18 @@ interface HistorySession {
   end_date: string;
   total_voters: number;
   total_votes: number;
+  vote_type?: VoteType;
+  title?: string | null;
+  description?: string | null;
   results: HistoryResult[];
   voters: HistoryVoter[];
+}
+
+/** Decision sessions are flagged by the API; sentinel IDs cover legacy rows */
+function isDecisionSession(session: HistorySession): boolean {
+  return (
+    session.vote_type === "decision" || isDecisionResults(session.results)
+  );
 }
 
 // ─── Avatar Component ───
@@ -143,6 +165,10 @@ function SessionDetail({
       ? ((session.total_voters / totalMembers) * 100).toFixed(1)
       : "0";
 
+  const isDecision = isDecisionSession(session);
+  const tally = getDecisionTally(session.results);
+  const outcome = OUTCOME_LABELS[getDecisionOutcome(tally)];
+
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -157,13 +183,16 @@ function SessionDetail({
       {/* Session Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          Vote Results
+          {session.title || (isDecision ? "Decision Results" : "Vote Results")}
         </h1>
         <p className="mt-1 text-sm text-muted">
           {formatShortDate(session.date)}
           {session.date !== session.end_date &&
             ` — ${formatShortDate(session.end_date)}`}
         </p>
+        {session.description && (
+          <p className="mt-1 text-sm text-muted">{session.description}</p>
+        )}
       </div>
 
       {/* Stats Row */}
@@ -191,26 +220,55 @@ function SessionDetail({
         </div>
         <div className="glass-card p-5">
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-gold" />
-            <p className="text-sm text-muted">Winner</p>
-          </div>
-          <p className="mt-1 text-lg font-semibold text-foreground truncate">
-            {session.results[0]?.candidate_name || "—"}
-          </p>
-          {session.results[0] && (
-            <p className="text-xs text-muted">
-              {session.results[0].vote_count}{" "}
-              {session.results[0].vote_count === 1 ? "vote" : "votes"}
+            {isDecision ? (
+              <Scale className="h-4 w-4 text-gold" />
+            ) : (
+              <Trophy className="h-4 w-4 text-gold" />
+            )}
+            <p className="text-sm text-muted">
+              {isDecision ? "Outcome" : "Winner"}
             </p>
+          </div>
+          {isDecision ? (
+            <>
+              <p className={`mt-1 text-lg font-semibold ${outcome.color}`}>
+                {outcome.label}
+              </p>
+              <p className="text-xs text-muted">
+                {tally.confirm} confirm · {tally.reject} reject
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-lg font-semibold text-foreground truncate">
+                {session.results[0]?.candidate_name || "—"}
+              </p>
+              {session.results[0] && (
+                <p className="text-xs text-muted">
+                  {session.results[0].vote_count}{" "}
+                  {session.results[0].vote_count === 1 ? "vote" : "votes"}
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Decision tally (Confirm vs Reject) */}
+      {isDecision && (
+        <DecisionTallyCard
+          tally={tally}
+          totalVoters={session.total_voters}
+          title="Final Tally"
+          showOutcome
+        />
+      )}
 
       {/* Full Results with Voter Breakdown */}
       <div className="glass-card overflow-hidden">
         <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="text-lg font-semibold text-foreground">
-            Candidate Results
+            {isDecision ? "Vote Breakdown" : "Candidate Results"}
           </h2>
         </div>
 
@@ -266,7 +324,7 @@ function SessionDetail({
                     {result.voters.map((voterName, vi) => (
                       <span
                         key={vi}
-                        className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-muted"
+                        className="inline-flex items-center gap-1 rounded-full bg-highlight px-2 py-0.5 text-[11px] text-muted"
                       >
                         <User className="h-2.5 w-2.5" />
                         {voterName}
@@ -360,6 +418,7 @@ export default function AdminVotingPage() {
   );
 
   const [isActive, setIsActive] = useState(false);
+  const [voteType, setVoteType] = useState<VoteType>("candidate");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [maxVotes, setMaxVotes] = useState(5);
@@ -373,6 +432,7 @@ export default function AdminVotingPage() {
   useEffect(() => {
     if (config) {
       setIsActive(config.is_active);
+      setVoteType(config.vote_type || "candidate");
       setTitle(config.title);
       setDescription(config.description || "");
       setMaxVotes(config.max_votes_per_member);
@@ -409,6 +469,7 @@ export default function AdminVotingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           is_active: isActive,
+          vote_type: voteType,
           title,
           description: description || null,
           max_votes_per_member: maxVotes,
@@ -457,6 +518,11 @@ export default function AdminVotingPage() {
   const results = resultsData?.results || [];
   const top5 = results.slice(0, 5);
   const totalVoters = resultsData?.totalVoters || 0;
+  // Decision mode for the LIVE session (form state may differ until saved)
+  const savedIsDecision =
+    config?.vote_type === "decision" || isDecisionResults(results);
+  const liveTally = getDecisionTally(results);
+  const liveOutcome = OUTCOME_LABELS[getDecisionOutcome(liveTally)];
   const participationRate =
     totalMembers > 0 ? ((totalVoters / totalMembers) * 100).toFixed(1) : "0";
   const pastSessions = historyData?.sessions || [];
@@ -552,10 +618,71 @@ export default function AdminVotingPage() {
             </button>
           </div>
 
+          {/* Vote Type */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              Vote Type
+            </label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                onClick={() => setVoteType("candidate")}
+                className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-all ${
+                  voteType === "candidate"
+                    ? "border-gold/50 bg-gold/10 ring-1 ring-gold/30"
+                    : "border-card-border bg-card hover:bg-highlight"
+                }`}
+              >
+                <Users
+                  className={`h-5 w-5 flex-shrink-0 ${
+                    voteType === "candidate" ? "text-gold" : "text-muted"
+                  }`}
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Candidate Election
+                  </p>
+                  <p className="text-xs text-muted">
+                    Members vote for other members
+                  </p>
+                </div>
+              </button>
+              <button
+                onClick={() => setVoteType("decision")}
+                className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-all ${
+                  voteType === "decision"
+                    ? "border-gold/50 bg-gold/10 ring-1 ring-gold/30"
+                    : "border-card-border bg-card hover:bg-highlight"
+                }`}
+              >
+                <Scale
+                  className={`h-5 w-5 flex-shrink-0 ${
+                    voteType === "decision" ? "text-gold" : "text-muted"
+                  }`}
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Decision
+                  </p>
+                  <p className="text-xs text-muted">
+                    Confirm or reject a proposal
+                  </p>
+                </div>
+              </button>
+            </div>
+            {config?.is_active &&
+              voteType !== (config?.vote_type || "candidate") && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gold">
+                  <AlertCircle className="h-3 w-3" />
+                  Changing the type while voting is live starts a fresh
+                  session — current votes move to history.
+                </p>
+              )}
+          </div>
+
           {/* Title */}
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">
-              Title
+              {voteType === "decision" ? "Decision / Proposal" : "Title"}
             </label>
             <input
               type="text"
@@ -580,24 +707,26 @@ export default function AdminVotingPage() {
             />
           </div>
 
-          {/* Max votes */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">
-              Max Votes Per Member
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={maxVotes}
-              onChange={(e) =>
-                setMaxVotes(
-                  Math.max(1, Math.min(20, parseInt(e.target.value) || 1))
-                )
-              }
-              className="w-32 rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
-            />
-          </div>
+          {/* Max votes (candidate elections only — decisions are one vote each) */}
+          {voteType === "candidate" && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Max Votes Per Member
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={maxVotes}
+                onChange={(e) =>
+                  setMaxVotes(
+                    Math.max(1, Math.min(20, parseInt(e.target.value) || 1))
+                  )
+                }
+                className="w-32 rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
+              />
+            </div>
+          )}
 
           {/* Schedule */}
           <div className="rounded-lg border border-card-border bg-card-glass/30 p-4">
@@ -620,7 +749,7 @@ export default function AdminVotingPage() {
                   type="datetime-local"
                   value={startsAt}
                   onChange={(e) => setStartsAt(e.target.value)}
-                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
                 />
                 {startsAt && (
                   <button
@@ -639,7 +768,7 @@ export default function AdminVotingPage() {
                   type="datetime-local"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
-                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+                  className="w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
                 />
                 {expiresAt && (
                   <button
@@ -719,23 +848,58 @@ export default function AdminVotingPage() {
         </div>
         <div className="glass-card p-5">
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-gold" />
-            <p className="text-sm text-muted">Leading Candidate</p>
-          </div>
-          <p className="mt-1 text-lg font-semibold text-foreground truncate">
-            {results[0]?.candidate_name || "—"}
-          </p>
-          {results[0] && (
-            <p className="text-xs text-muted">
-              {results[0].vote_count}{" "}
-              {results[0].vote_count === 1 ? "vote" : "votes"}
+            {savedIsDecision ? (
+              <Scale className="h-4 w-4 text-gold" />
+            ) : (
+              <Trophy className="h-4 w-4 text-gold" />
+            )}
+            <p className="text-sm text-muted">
+              {savedIsDecision ? "Current Outcome" : "Leading Candidate"}
             </p>
+          </div>
+          {savedIsDecision ? (
+            <>
+              <p
+                className={`mt-1 text-lg font-semibold ${
+                  results.length > 0 ? liveOutcome.color : "text-foreground"
+                }`}
+              >
+                {results.length > 0 ? liveOutcome.label : "—"}
+              </p>
+              {results.length > 0 && (
+                <p className="text-xs text-muted">
+                  {liveTally.confirm} confirm · {liveTally.reject} reject
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-lg font-semibold text-foreground truncate">
+                {results[0]?.candidate_name || "—"}
+              </p>
+              {results[0] && (
+                <p className="text-xs text-muted">
+                  {results[0].vote_count}{" "}
+                  {results[0].vote_count === 1 ? "vote" : "votes"}
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Top 5 Live Tally Chart */}
-      {top5.length > 0 && (
+      {/* Live Decision Tally */}
+      {savedIsDecision && results.length > 0 && (
+        <DecisionTallyCard
+          tally={liveTally}
+          totalVoters={totalVoters}
+          title="Live Tally"
+          isLive
+        />
+      )}
+
+      {/* Top 5 Live Tally Chart (candidate elections only) */}
+      {!savedIsDecision && top5.length > 0 && (
         <div className="glass-card p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -807,7 +971,8 @@ export default function AdminVotingPage() {
         </div>
       )}
 
-      {/* Full Results Table */}
+      {/* Full Results Table (candidate elections only) */}
+      {!savedIsDecision && (
       <div className="glass-card overflow-hidden">
         <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="text-lg font-semibold text-foreground">
@@ -898,6 +1063,7 @@ export default function AdminVotingPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Past Voting History */}
       {pastSessions.length > 0 && (
@@ -917,23 +1083,29 @@ export default function AdminVotingPage() {
           <div className="divide-y divide-card-border/50">
             {pastSessions.map((session) => {
               const winner = session.results[0];
+              const decision = isDecisionSession(session);
+              const tally = getDecisionTally(session.results);
+              const outcome = OUTCOME_LABELS[getDecisionOutcome(tally)];
               return (
                 <button
                   key={session.session_id}
                   onClick={() => setSelectedSession(session)}
-                  className="w-full text-left px-4 py-4 sm:px-6 hover:bg-white/[0.04] transition-colors group"
+                  className="w-full text-left px-4 py-4 sm:px-6 hover:bg-highlight transition-colors group"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground">
-                          {formatShortDate(session.date)}
-                        </span>
-                        {session.date !== session.end_date && (
-                          <span className="text-xs text-muted">
-                            — {formatShortDate(session.end_date)}
-                          </span>
+                        {decision && (
+                          <Scale className="h-3.5 w-3.5 flex-shrink-0 text-gold" />
                         )}
+                        <span className="text-sm font-semibold text-foreground truncate">
+                          {session.title || formatShortDate(session.date)}
+                        </span>
+                        <span className="text-xs text-muted flex-shrink-0">
+                          {session.title && formatShortDate(session.date)}
+                          {session.date !== session.end_date &&
+                            ` — ${formatShortDate(session.end_date)}`}
+                        </span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
                         <span className="flex items-center gap-1">
@@ -944,14 +1116,26 @@ export default function AdminVotingPage() {
                           <BarChart3 className="h-3 w-3" />
                           {session.total_votes} vote{session.total_votes !== 1 ? "s" : ""}
                         </span>
-                        {winner && (
+                        {decision ? (
                           <span className="flex items-center gap-1">
-                            <Trophy className="h-3 w-3 text-gold" />
-                            <span className="text-gold font-medium">
-                              {winner.candidate_name}
+                            <Scale className="h-3 w-3 text-gold" />
+                            <span className={`font-medium ${outcome.color}`}>
+                              {outcome.label}
                             </span>
-                            <span>({winner.vote_count})</span>
+                            <span>
+                              ({tally.confirm}–{tally.reject})
+                            </span>
                           </span>
+                        ) : (
+                          winner && (
+                            <span className="flex items-center gap-1">
+                              <Trophy className="h-3 w-3 text-gold" />
+                              <span className="text-gold font-medium">
+                                {winner.candidate_name}
+                              </span>
+                              <span>({winner.vote_count})</span>
+                            </span>
+                          )
                         )}
                       </div>
                     </div>

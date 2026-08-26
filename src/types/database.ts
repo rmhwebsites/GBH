@@ -162,9 +162,12 @@ export interface FundUpdate {
   updated_at: string;
 }
 
+export type VoteType = "candidate" | "decision";
+
 export interface VotingConfig {
   id: string;
   is_active: boolean;
+  vote_type: VoteType;
   title: string;
   description: string | null;
   max_votes_per_member: number;
@@ -173,6 +176,14 @@ export interface VotingConfig {
   voting_session_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface VotingSessionMeta {
+  session_id: string;
+  vote_type: VoteType;
+  title: string;
+  description: string | null;
+  created_at: string;
 }
 
 export interface Vote {
@@ -188,6 +199,59 @@ export interface Vote {
 export interface VotingCandidate {
   memberstack_id: string;
   name: string;
+}
+
+export interface InvestmentWindow {
+  id: string;
+  title: string;
+  description: string | null;
+  opens_at: string;
+  closes_at: string;
+  min_amount: number;
+  max_amount: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export type SubmissionStatus =
+  | "pending_payment"
+  | "processing"
+  | "paid"
+  | "failed"
+  | "canceled"
+  | "processed";
+
+export interface InvestmentSubmission {
+  id: string;
+  window_id: string;
+  memberstack_id: string;
+  member_name: string;
+  member_email: string | null;
+  amount: number;
+  status: SubmissionStatus;
+  stripe_session_id: string | null;
+  stripe_payment_intent: string | null;
+  failure_reason: string | null;
+  processed_investment_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Meeting {
+  id: string;
+  meeting_date: string;
+  title: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface MeetingAttendee {
+  memberstack_id: string;
+  member_name: string;
+}
+
+export interface MeetingWithAttendance extends Meeting {
+  attendees: MeetingAttendee[];
 }
 
 export interface VotingResult {

@@ -507,7 +507,7 @@ export default function AdminInvestmentsPage() {
                 onChange={(e) =>
                   setForm({ ...form, investment_date: e.target.value })
                 }
-                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none [color-scheme:dark]"
+                className="w-full rounded-lg border border-input-border bg-input-bg px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
               />
             </div>
           </div>

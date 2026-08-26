@@ -30,6 +30,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Session metadata (type + title). Best-effort: table may not exist
+    // for pre-migration deployments.
+    const { data: sessionMeta } = await supabase
+      .from("voting_sessions")
+      .select("session_id, vote_type, title, description");
+    const metaMap = new Map(
+      (sessionMeta || []).map((m) => [m.session_id, m])
+    );
+
     // Group votes by session
     const sessionMap = new Map<
       string,
@@ -125,12 +134,17 @@ export async function GET(request: NextRequest) {
               new Date(a.voted_at).getTime() - new Date(b.voted_at).getTime()
           );
 
+        const meta = metaMap.get(sessionId);
+
         return {
           session_id: sessionId,
           date: data.earliestDate,
           end_date: data.latestDate,
           total_voters: voterMap.size,
           total_votes: data.votes.length,
+          vote_type: meta?.vote_type || "candidate",
+          title: meta?.title || null,
+          description: meta?.description || null,
           results,
           voters,
         };

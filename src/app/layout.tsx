@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { MemberstackProvider } from "@/components/providers/MemberstackProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
@@ -8,7 +9,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#000d1a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f5f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#000d1a" },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -38,9 +42,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <MemberstackProvider>{children}</MemberstackProvider>
+        {/* Synchronous: applies the theme before first paint (no flash) */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/theme-init.js" />
+        <ThemeProvider>
+          <MemberstackProvider>{children}</MemberstackProvider>
+        </ThemeProvider>
         <ServiceWorkerRegistration />
       </body>
     </html>

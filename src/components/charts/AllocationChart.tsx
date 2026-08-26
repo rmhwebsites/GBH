@@ -3,6 +3,8 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import type { HoldingWithQuote } from "@/types/database";
 import { formatCurrency } from "@/lib/calculations";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface Props {
   holdings: HoldingWithQuote[];
@@ -198,6 +200,8 @@ function getTickerColor(ticker: string, index: number): string {
 }
 
 export function AllocationChart({ holdings, cashBalance = 0 }: Props) {
+  const { resolvedTheme } = useTheme();
+  const chartColors = getChartTheme(resolvedTheme);
   // Calculate total including cash for proper weight calculation
   const stockTotal = holdings.reduce((sum, h) => sum + h.currentValue, 0);
   const grandTotal = stockTotal + cashBalance;
@@ -244,14 +248,14 @@ export function AllocationChart({ holdings, cashBalance = 0 }: Props) {
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: "#0a1628",
-                border: "1px solid rgba(255,255,255,0.15)",
+                backgroundColor: chartColors.tooltipBg,
+                border: `1px solid ${chartColors.tooltipBorder}`,
                 borderRadius: "8px",
                 fontSize: "13px",
                 padding: "8px 12px",
               }}
-              itemStyle={{ color: "#f0f0f0" }}
-              labelStyle={{ color: "#f0f0f0" }}
+              itemStyle={{ color: chartColors.tooltipText }}
+              labelStyle={{ color: chartColors.tooltipText }}
               cursor={{ fill: "rgba(206, 156, 92, 0.08)" }}
               formatter={(value) => [formatCurrency(value as number), "Value"]}
             />

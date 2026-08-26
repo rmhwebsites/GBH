@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart, type IChartApi, ColorType, AreaSeries } from "lightweight-charts";
 import type { ChartDataPoint } from "@/types/database";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface Props {
   ticker: string;
@@ -21,9 +23,11 @@ export function StockChart({ ticker }: Props) {
   const chartRef = useRef<IChartApi | null>(null);
   const [period, setPeriod] = useState<string>("1y");
   const [loading, setLoading] = useState(true);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
+    const colors = getChartTheme(resolvedTheme);
 
     // Clean up previous chart
     if (chartRef.current) {
@@ -37,29 +41,29 @@ export function StockChart({ ticker }: Props) {
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.85)",
+        textColor: colors.textColor,
         fontFamily: "'Roboto', sans-serif",
         fontSize: isMobile ? 10 : 12,
       },
       grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.05)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.05)" },
+        vertLines: { color: colors.gridColor },
+        horzLines: { color: colors.gridColor },
       },
       crosshair: {
         vertLine: {
-          color: "rgba(206, 156, 92, 0.4)",
+          color: colors.crosshairColor,
           labelBackgroundColor: "#CE9C5C",
         },
         horzLine: {
-          color: "rgba(206, 156, 92, 0.4)",
+          color: colors.crosshairColor,
           labelBackgroundColor: "#CE9C5C",
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: colors.borderColor,
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: colors.borderColor,
         timeVisible: true,
       },
       width: chartContainerRef.current.clientWidth,
@@ -119,7 +123,7 @@ export function StockChart({ ticker }: Props) {
         chartRef.current = null;
       }
     };
-  }, [ticker, period]);
+  }, [ticker, period, resolvedTheme]);
 
   return (
     <div className="glass-card p-4 sm:p-6">

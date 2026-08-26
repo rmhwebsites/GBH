@@ -7,6 +7,8 @@ import {
   ColorType,
   AreaSeries,
 } from "lightweight-charts";
+import { useTheme } from "@/components/providers/ThemeProvider";
+import { getChartTheme } from "@/lib/chartTheme";
 
 interface DataPoint {
   time: string;
@@ -22,6 +24,7 @@ interface Props {
 export function FundValueChart({ data, isPositive, onCrosshairMove }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const { resolvedTheme } = useTheme();
 
   const handleCrosshairMove = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,11 +64,12 @@ export function FundValueChart({ data, isPositive, onCrosshairMove }: Props) {
     const lineColor = isPositive ? gainColor : lossColor;
 
     const isMobile = window.innerWidth < 640;
+    const colors = getChartTheme(resolvedTheme);
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255, 255, 255, 0.4)",
+        textColor: colors.textColorSubtle,
         fontFamily: "'Inter', 'Roboto', sans-serif",
         fontSize: isMobile ? 9 : 11,
       },
@@ -75,7 +79,7 @@ export function FundValueChart({ data, isPositive, onCrosshairMove }: Props) {
       },
       crosshair: {
         vertLine: {
-          color: "rgba(255, 255, 255, 0.15)",
+          color: colors.borderColor,
           width: 1,
           style: 0, // Solid
           labelVisible: false,
@@ -150,7 +154,7 @@ export function FundValueChart({ data, isPositive, onCrosshairMove }: Props) {
         chartRef.current = null;
       }
     };
-  }, [data, isPositive, handleCrosshairMove]);
+  }, [data, isPositive, handleCrosshairMove, resolvedTheme]);
 
   if (data.length === 0) {
     return (

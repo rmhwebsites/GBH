@@ -7,6 +7,7 @@ import {
   Loader2,
   Vote as VoteIcon,
   CheckCircle2,
+  XCircle,
   AlertCircle,
   Users,
   Trophy,
@@ -19,12 +20,21 @@ import type {
   VotingCandidate,
   Vote,
   VotingResult,
+  VoteType,
 } from "@/types/database";
 import {
   getMemberPhotoUrl,
   getInitials,
   getAvatarColor,
 } from "@/lib/memberPhotos";
+import { DecisionTallyCard } from "@/components/voting/DecisionTallyCard";
+import {
+  DECISION_CONFIRM_ID,
+  DECISION_REJECT_ID,
+  getDecisionTally,
+  isDecisionResults,
+  type DecisionChoice,
+} from "@/lib/voting";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -83,7 +93,45 @@ interface HistorySession {
   end_date: string;
   total_voters: number;
   total_votes: number;
+  vote_type?: VoteType;
+  title?: string | null;
+  description?: string | null;
   results: VotingResult[];
+}
+
+/** Decision sessions are flagged by the API; sentinel IDs cover legacy rows */
+function isDecisionSession(session: HistorySession): boolean {
+  return (
+    session.vote_type === "decision" || isDecisionResults(session.results)
+  );
+}
+
+/** Render one past session — decision tally or candidate chart */
+function HistorySessionCard({ session }: { session: HistorySession }) {
+  const sessionDate = new Date(session.date).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  if (isDecisionSession(session)) {
+    return (
+      <DecisionTallyCard
+        tally={getDecisionTally(session.results)}
+        totalVoters={session.total_voters}
+        title={session.title || sessionDate}
+        description={session.title ? sessionDate : null}
+        showOutcome
+      />
+    );
+  }
+
+  return (
+    <TallyChart
+      results={session.results}
+      totalVoters={session.total_voters}
+      title={session.title || sessionDate}
+    />
+  );
 }
 
 /** Reusable Top-5 tally chart */
@@ -238,6 +286,9 @@ export default function VotePage() {
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(
     new Set()
   );
+  const [selectedChoice, setSelectedChoice] = useState<DecisionChoice | null>(
+    null
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -247,6 +298,7 @@ export default function VotePage() {
     });
 
   const isVisible = config?.is_visible ?? false;
+  const isDecision = config?.vote_type === "decision";
   const isExpired =
     config?.expires_at ? new Date() >= new Date(config.expires_at) : false;
   const isActiveButNotStarted =
@@ -254,11 +306,14 @@ export default function VotePage() {
     config?.starts_at &&
     new Date() < new Date(config.starts_at);
 
-  // Fetch candidates when visible OR when expired (to show history)
+  // Fetch candidates when visible OR when expired (to show history).
+  // Decision votes have no candidates.
   const { data: candidatesData, isLoading: loadingCandidates } = useSWR<{
     candidates: VotingCandidate[];
   }>(
-    config?.is_active || isExpired ? "/api/voting/candidates" : null,
+    (config?.is_active || isExpired) && !isDecision
+      ? "/api/voting/candidates"
+      : null,
     fetcher
   );
 
@@ -333,20 +388,9 @@ export default function VotePage() {
               </h2>
             </div>
 
-            {pastSessions.map((session) => {
-              const sessionDate = new Date(session.date).toLocaleDateString(
-                "en-US",
-                { month: "long", year: "numeric" }
-              );
-              return (
-                <TallyChart
-                  key={session.session_id}
-                  results={session.results}
-                  totalVoters={session.total_voters}
-                  title={sessionDate}
-                />
-              );
-            })}
+            {pastSessions.map((session) => (
+              <HistorySessionCard key={session.session_id} session={session} />
+            ))}
           </div>
         )}
       </div>
@@ -393,20 +437,9 @@ export default function VotePage() {
                 Past Results
               </h2>
             </div>
-            {pastSessions.map((session) => {
-              const sessionDate = new Date(session.date).toLocaleDateString(
-                "en-US",
-                { month: "long", year: "numeric" }
-              );
-              return (
-                <TallyChart
-                  key={session.session_id}
-                  results={session.results}
-                  totalVoters={session.total_voters}
-                  title={sessionDate}
-                />
-              );
-            })}
+            {pastSessions.map((session) => (
+              <HistorySessionCard key={session.session_id} session={session} />
+            ))}
           </div>
         )}
       </div>
@@ -422,6 +455,13 @@ export default function VotePage() {
   const maxVotes = config?.max_votes_per_member || 5;
   const canVote = isVisible && !isExpired && !hasVoted;
 
+  const myChoice: DecisionChoice | null =
+    myVotes[0]?.candidate_memberstack_id === DECISION_CONFIRM_ID
+      ? "confirm"
+      : myVotes[0]?.candidate_memberstack_id === DECISION_REJECT_ID
+      ? "reject"
+      : null;
+
   const toggleCandidate = (candidateId: string) => {
     setSelectedCandidates((prev) => {
       const next = new Set(prev);
@@ -436,7 +476,12 @@ export default function VotePage() {
   };
 
   const handleSubmit = async () => {
-    if (selectedCandidates.size === 0) {
+    if (isDecision) {
+      if (!selectedChoice) {
+        setSubmitError("Please choose Confirm or Reject.");
+        return;
+      }
+    } else if (selectedCandidates.size === 0) {
       setSubmitError("Please select at least one candidate.");
       return;
     }
@@ -448,10 +493,11 @@ export default function VotePage() {
       const res = await fetch("/api/voting/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          candidateIds: Array.from(selectedCandidates),
-          voterName: "Member",
-        }),
+        body: JSON.stringify(
+          isDecision
+            ? { choice: selectedChoice }
+            : { candidateIds: Array.from(selectedCandidates) }
+        ),
       });
 
       if (!res.ok) {
@@ -522,8 +568,18 @@ export default function VotePage() {
             <div>
               <h3 className="font-medium text-foreground">Vote Submitted</h3>
               <p className="mt-1 text-sm text-muted">
-                You voted for:{" "}
-                {myVotes.map((v) => v.candidate_name).join(", ")}
+                You voted{isDecision ? "" : " for"}:{" "}
+                <span
+                  className={
+                    myChoice === "confirm"
+                      ? "font-medium text-gain"
+                      : myChoice === "reject"
+                      ? "font-medium text-loss"
+                      : undefined
+                  }
+                >
+                  {myVotes.map((v) => v.candidate_name).join(", ")}
+                </span>
               </p>
               <p className="mt-1 text-xs text-muted/70">
                 Votes are final and cannot be changed.
@@ -533,8 +589,90 @@ export default function VotePage() {
         </div>
       )}
 
-      {/* Voting form (only if can vote) */}
-      {canVote && (
+      {/* Decision ballot — Confirm / Reject (only if can vote) */}
+      {canVote && isDecision && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Cast your vote on this decision. One vote per member.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                setSelectedChoice("confirm");
+                setSubmitError(null);
+              }}
+              className={`glass-card flex flex-col items-center gap-3 p-6 transition-all ${
+                selectedChoice === "confirm"
+                  ? "border-gain/50 bg-gain/10 ring-1 ring-gain/30"
+                  : "cursor-pointer hover:border-card-border/80 hover:bg-highlight"
+              }`}
+            >
+              <CheckCircle2
+                className={`h-8 w-8 ${
+                  selectedChoice === "confirm" ? "text-gain" : "text-muted"
+                }`}
+              />
+              <span className="text-sm font-semibold text-foreground sm:text-base">
+                Confirm
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedChoice("reject");
+                setSubmitError(null);
+              }}
+              className={`glass-card flex flex-col items-center gap-3 p-6 transition-all ${
+                selectedChoice === "reject"
+                  ? "border-loss/50 bg-loss/10 ring-1 ring-loss/30"
+                  : "cursor-pointer hover:border-card-border/80 hover:bg-highlight"
+              }`}
+            >
+              <XCircle
+                className={`h-8 w-8 ${
+                  selectedChoice === "reject" ? "text-loss" : "text-muted"
+                }`}
+              />
+              <span className="text-sm font-semibold text-foreground sm:text-base">
+                Reject
+              </span>
+            </button>
+          </div>
+
+          {submitError && (
+            <div className="flex items-center gap-2 rounded-lg bg-loss/10 px-4 py-3 text-sm text-loss">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {submitError}
+            </div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !selectedChoice}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-6 py-3 text-sm font-semibold text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <VoteIcon className="h-4 w-4" />
+            )}
+            {submitting
+              ? "Submitting..."
+              : selectedChoice
+              ? `Submit Vote — ${
+                  selectedChoice === "confirm" ? "Confirm" : "Reject"
+                }`
+              : "Submit Vote"}
+          </button>
+
+          <p className="text-center text-xs text-muted/60">
+            Your vote is final and cannot be changed after submission.
+          </p>
+        </div>
+      )}
+
+      {/* Candidate voting form (only if can vote) */}
+      {canVote && !isDecision && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted">
@@ -569,7 +707,7 @@ export default function VotePage() {
                       ? "border-gold/50 bg-gold/10 ring-1 ring-gold/30"
                       : isDisabled
                       ? "cursor-not-allowed opacity-40"
-                      : "cursor-pointer hover:border-card-border/80 hover:bg-white/[0.04]"
+                      : "cursor-pointer hover:border-card-border/80 hover:bg-highlight"
                   }`}
                 >
                   <MemberAvatar name={candidate.name} size="md" />
@@ -613,15 +751,26 @@ export default function VotePage() {
       )}
 
       {/* Current session results */}
-      {resultsData && resultsData.results.length > 0 && (
-        <TallyChart
-          results={resultsData.results}
-          totalVoters={resultsData.totalVoters}
-          myVotes={myVotes}
-          title={isExpired ? "Final Results" : "Live Results"}
-          isLive={!isExpired}
-        />
-      )}
+      {resultsData &&
+        resultsData.results.length > 0 &&
+        (isDecision || isDecisionResults(resultsData.results) ? (
+          <DecisionTallyCard
+            tally={getDecisionTally(resultsData.results)}
+            totalVoters={resultsData.totalVoters}
+            title={isExpired ? "Final Results" : "Live Results"}
+            isLive={!isExpired}
+            showOutcome={isExpired}
+            myChoice={myChoice}
+          />
+        ) : (
+          <TallyChart
+            results={resultsData.results}
+            totalVoters={resultsData.totalVoters}
+            myVotes={myVotes}
+            title={isExpired ? "Final Results" : "Live Results"}
+            isLive={!isExpired}
+          />
+        ))}
 
       {/* Past voting history (below current results) */}
       {pastSessions.length > 0 && (
@@ -630,20 +779,9 @@ export default function VotePage() {
             <History className="h-4 w-4 text-muted" />
             <h2 className="text-sm font-semibold text-muted">Past Votes</h2>
           </div>
-          {pastSessions.map((session) => {
-            const sessionDate = new Date(session.date).toLocaleDateString(
-              "en-US",
-              { month: "long", year: "numeric" }
-            );
-            return (
-              <TallyChart
-                key={session.session_id}
-                results={session.results}
-                totalVoters={session.total_voters}
-                title={sessionDate}
-              />
-            );
-          })}
+          {pastSessions.map((session) => (
+            <HistorySessionCard key={session.session_id} session={session} />
+          ))}
         </div>
       )}
     </div>
