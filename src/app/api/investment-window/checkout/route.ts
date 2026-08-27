@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import type { InvestmentWindow } from "@/types/database";
@@ -37,10 +37,9 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient();
 
     // 1. Find the open window
-    const { data: windows, error: windowError } = await supabase
-      .from("investment_windows")
-      .select("*")
-      .eq("is_active", true);
+    const { data: windows, error: windowError } = await withSchemaRetry((c) =>
+      c.from("investment_windows").select("*").eq("is_active", true)
+    );
 
     if (windowError) {
       return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
 import type { InvestmentSubmission } from "@/types/database";
 
@@ -8,17 +8,15 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
 
   try {
-    const supabase = createServerClient();
-
-    const { data: windows, error: windowError } = await supabase
-      .from("investment_windows")
-      .select("*")
-      .order("opens_at", { ascending: false });
+    const { data: windows, error: windowError } = await withSchemaRetry((c) =>
+      c.from("investment_windows").select("*").order("opens_at", { ascending: false })
+    );
 
     if (windowError) {
       return NextResponse.json({ error: windowError.message }, { status: 500 });
     }
 
+    const supabase = createServerClient();
     const { data: submissions, error: subError } = await supabase
       .from("investment_submissions")
       .select("*")
@@ -72,19 +70,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServerClient();
-    const { data, error } = await supabase
-      .from("investment_windows")
-      .insert({
-        title: title || "Investment Window",
-        description: description || null,
-        opens_at,
-        closes_at,
-        min_amount: Number(min_amount) > 0 ? Number(min_amount) : 100,
-        max_amount: Number(max_amount) > 0 ? Number(max_amount) : null,
-      })
-      .select()
-      .single();
+    const { data, error } = await withSchemaRetry((c) =>
+      c
+        .from("investment_windows")
+        .insert({
+          title: title || "Investment Window",
+          description: description || null,
+          opens_at,
+          closes_at,
+          min_amount: Number(min_amount) > 0 ? Number(min_amount) : 100,
+          max_amount: Number(max_amount) > 0 ? Number(max_amount) : null,
+        })
+        .select()
+        .single()
+    );
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

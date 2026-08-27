@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
 import type { InvestmentWindow } from "@/types/database";
 
@@ -19,11 +19,13 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
 
-    const { data: windows, error } = await supabase
-      .from("investment_windows")
-      .select("*")
-      .eq("is_active", true)
-      .order("opens_at", { ascending: false });
+    const { data: windows, error } = await withSchemaRetry((c) =>
+      c
+        .from("investment_windows")
+        .select("*")
+        .eq("is_active", true)
+        .order("opens_at", { ascending: false })
+    );
 
     if (error) {
       // Table may not exist yet (migration not run) — degrade gracefully
