@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   History,
   Building2,
+  Receipt,
 } from "lucide-react";
 import type {
   InvestmentWindow,
@@ -21,7 +22,15 @@ import type {
 import {
   formatBankAccount,
   type LinkedBankAccount,
+  type PaymentHistoryItem,
 } from "@/lib/stripeCustomers";
+
+const PAYMENT_STATUS: Record<string, { label: string; classes: string }> = {
+  succeeded: { label: "Completed", classes: "text-gain" },
+  processing: { label: "Processing", classes: "text-gold" },
+  canceled: { label: "Canceled", classes: "text-muted" },
+  requires_payment_method: { label: "Failed", classes: "text-loss" },
+};
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -89,6 +98,7 @@ export default function InvestPage() {
 
   const { data: paymentData } = useSWR<{
     bankAccounts: LinkedBankAccount[];
+    payments: PaymentHistoryItem[];
     configured: boolean;
   }>("/api/investment-window/payment-method", fetcher);
 
@@ -122,6 +132,7 @@ export default function InvestPage() {
   const submissions = data?.submissions || [];
   const isOpen = invWindow?.is_open ?? false;
   const bankAccounts = paymentData?.bankAccounts || [];
+  const payments = paymentData?.payments || [];
 
   const parsedAmount = parseFloat(amount);
   const amountValid =
@@ -390,6 +401,52 @@ export default function InvestPage() {
               Secure bank payment (ACH) powered by Stripe. Units are granted at
               the fund&apos;s NAV when your contribution is processed.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Full contribution history from Stripe */}
+      {payments.length > 0 && (
+        <div className="glass-card overflow-hidden">
+          <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-gold" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Payment History
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted">
+              All contributions on record with our payment processor
+            </p>
+          </div>
+          <div className="divide-y divide-card-border/50">
+            {payments.map((payment) => {
+              const meta = PAYMENT_STATUS[payment.status] || {
+                label: payment.status,
+                classes: "text-muted",
+              };
+              return (
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {formatMoney(payment.amount)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {new Date(payment.created * 1000).toLocaleDateString(
+                        "en-US",
+                        { month: "long", day: "numeric", year: "numeric" }
+                      )}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-medium ${meta.classes}`}>
+                    {meta.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

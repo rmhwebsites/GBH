@@ -16,7 +16,28 @@ export interface MemberStripeInfo {
   memberstackId: string;
   memberName: string;
   stripeCustomerId: string | null;
+  /** True when an admin linked this customer by hand */
+  linkedManually?: boolean;
   bankAccounts: LinkedBankAccount[];
+}
+
+/** A Stripe customer as shown in the admin link picker */
+export interface StripeCustomerSummary {
+  id: string;
+  name: string | null;
+  email: string | null;
+  created: number;
+  /** Name of the member this customer is already linked to, if any */
+  linkedToMember: string | null;
+}
+
+/** One contribution attempt as recorded by Stripe */
+export interface PaymentHistoryItem {
+  id: string;
+  amount: number;
+  status: string;
+  created: number;
+  description: string | null;
 }
 
 /**
@@ -37,7 +58,29 @@ export async function getOrCreateStripeCustomer(
     return existing[0].stripe_customer_id;
   }
 
-  const customer = await getStripe().customers.create({
+  const stripe = getStripe();
+
+  // Adopt an existing Stripe customer with this email rather than creating a
+  // duplicate — keeps one customer (and one payment history) per person
+  if (member.email) {
+    const matches = await stripe.customers.list({
+      email: member.email,
+      limit: 1,
+    });
+    if (matches.data.length > 0) {
+      const found = matches.data[0];
+      await linkStripeCustomer(supabase, {
+        memberstackId: member.memberstackId,
+        stripeCustomerId: found.id,
+        memberName: member.name,
+        memberEmail: member.email,
+        manual: false,
+      });
+      return found.id;
+    }
+  }
+
+  const customer = await stripe.customers.create({
     name: member.name,
     email: member.email || undefined,
     metadata: { memberstack_id: member.memberstackId },
@@ -56,6 +99,72 @@ export async function getOrCreateStripeCustomer(
   );
 
   return customer.id;
+}
+
+/**
+ * Point a member at a Stripe customer. Used both by the automatic path and
+ * by admins linking an existing customer by hand.
+ */
+export async function linkStripeCustomer(
+  supabase: SupabaseClient,
+  params: {
+    memberstackId: string;
+    stripeCustomerId: string;
+    memberName: string;
+    memberEmail: string | null;
+    manual: boolean;
+  }
+): Promise<void> {
+  const { error } = await supabase.from("member_stripe_customers").upsert(
+    {
+      memberstack_id: params.memberstackId,
+      stripe_customer_id: params.stripeCustomerId,
+      member_name: params.memberName,
+      member_email: params.memberEmail,
+      linked_manually: params.manual,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "memberstack_id" }
+  );
+
+  if (error) throw new Error(error.message);
+}
+
+/** Remove a member's Stripe customer link. The Stripe customer is untouched. */
+export async function unlinkStripeCustomer(
+  supabase: SupabaseClient,
+  memberstackId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("member_stripe_customers")
+    .delete()
+    .eq("memberstack_id", memberstackId);
+
+  if (error) throw new Error(error.message);
+}
+
+/** Contribution history for a customer, newest first (masked amounts only). */
+export async function listPaymentHistory(
+  stripeCustomerId: string,
+  limit = 20
+): Promise<PaymentHistoryItem[]> {
+  try {
+    const intents = await getStripe().paymentIntents.list({
+      customer: stripeCustomerId,
+      limit,
+    });
+
+    return intents.data.map((pi) => ({
+      id: pi.id,
+      amount: pi.amount / 100,
+      status: pi.status,
+      created: pi.created,
+      description: pi.description,
+    }));
+  } catch (err) {
+    console.error(`Failed to list payments for ${stripeCustomerId}:`, err);
+    return [];
+  }
 }
 
 /** Bank accounts saved to a Stripe customer (masked details only). */

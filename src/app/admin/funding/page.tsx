@@ -20,6 +20,9 @@ import {
   BadgeCheck,
   Building2,
   CreditCard,
+  Link as LinkIcon,
+  Unlink,
+  Receipt,
 } from "lucide-react";
 import type {
   InvestmentWindow,
@@ -30,7 +33,26 @@ import { MemberAvatar } from "@/components/ui/MemberAvatar";
 import {
   formatBankAccount,
   type MemberStripeInfo,
+  type StripeCustomerSummary,
+  type PaymentHistoryItem,
 } from "@/lib/stripeCustomers";
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  succeeded: "Succeeded",
+  processing: "Processing",
+  canceled: "Canceled",
+  requires_payment_method: "Failed",
+  requires_confirmation: "Incomplete",
+  requires_action: "Action needed",
+};
+
+function paymentStatusClasses(status: string): string {
+  if (status === "succeeded") return "text-gain";
+  if (status === "processing") return "text-gold";
+  if (status === "canceled" || status === "requires_payment_method")
+    return "text-loss";
+  return "text-muted";
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -90,6 +112,198 @@ const STATE_META = {
   inactive: { label: "Inactive", classes: "bg-loss/10 text-loss" },
 } as const;
 
+/** Picker for attaching an existing Stripe customer to a member */
+function LinkCustomerPanel({
+  member,
+  onClose,
+  onLinked,
+}: {
+  member: MemberStripeInfo;
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, isLoading } = useSWR<{
+    customers: StripeCustomerSummary[];
+    stripeConfigured: boolean;
+  }>(
+    `/api/admin/stripe-accounts/customers?search=${encodeURIComponent(search)}`,
+    fetcher,
+    { keepPreviousData: true }
+  );
+
+  const customers = data?.customers || [];
+
+  const handleLink = async (customerId: string) => {
+    setLinkingId(customerId);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/stripe-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberstack_id: member.memberstackId,
+          stripe_customer_id: customerId,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error || "Failed to link customer");
+        return;
+      }
+      onLinked();
+      onClose();
+    } catch {
+      setError("Failed to link customer");
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
+  return (
+    <div className="border-t border-card-border/30 bg-card/50 px-4 py-4 sm:px-6">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-medium text-foreground">
+          Link a Stripe customer to {member.memberName}
+        </p>
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+      </div>
+
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name, email, or customer ID..."
+        className="mb-3 w-full rounded-lg border border-card-border bg-card px-3 py-2 text-sm text-foreground placeholder-muted focus:border-gold focus:outline-none"
+      />
+
+      {error && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-loss/10 px-3 py-2 text-xs text-loss">
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-gold" />
+        </div>
+      ) : customers.length === 0 ? (
+        <p className="py-4 text-center text-xs text-muted">
+          No Stripe customers found{search ? ` matching "${search}"` : ""}.
+        </p>
+      ) : (
+        <div className="max-h-72 space-y-1.5 overflow-y-auto">
+          {customers.map((customer) => {
+            const takenByOther =
+              customer.linkedToMember &&
+              customer.linkedToMember !== member.memberName;
+            return (
+              <div
+                key={customer.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-card-border bg-card px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {customer.name || "(no name)"}
+                  </p>
+                  <p className="truncate text-xs text-muted">
+                    {customer.email || "(no email)"}
+                  </p>
+                  <p className="truncate font-mono text-[10px] text-muted/70">
+                    {customer.id}
+                  </p>
+                  {customer.linkedToMember && (
+                    <p className="mt-0.5 text-[11px] text-gold">
+                      Linked to {customer.linkedToMember}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleLink(customer.id)}
+                  disabled={linkingId === customer.id || Boolean(takenByOther)}
+                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={
+                    takenByOther
+                      ? `Already linked to ${customer.linkedToMember}`
+                      : "Link this customer"
+                  }
+                >
+                  {linkingId === customer.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <LinkIcon className="h-3 w-3" />
+                  )}
+                  Link
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A member's Stripe contribution history, loaded on demand */
+function PaymentHistory({ memberstackId }: { memberstackId: string }) {
+  const { data, isLoading } = useSWR<{ payments: PaymentHistoryItem[] }>(
+    `/api/admin/stripe-accounts/history?memberstack_id=${memberstackId}`,
+    fetcher
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-3">
+        <Loader2 className="h-4 w-4 animate-spin text-gold" />
+      </div>
+    );
+  }
+
+  const payments = data?.payments || [];
+  if (payments.length === 0) {
+    return (
+      <p className="py-2 text-xs text-muted">
+        No Stripe payments found for this customer.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {payments.map((payment) => (
+        <div
+          key={payment.id}
+          className="flex items-center justify-between gap-2 text-xs"
+        >
+          <span className="text-muted">
+            {new Date(payment.created * 1000).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
+          <span className="font-medium text-foreground">
+            {formatMoney(payment.amount)}
+          </span>
+          <span className={paymentStatusClasses(payment.status)}>
+            {PAYMENT_STATUS_LABEL[payment.status] || payment.status}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminFundingPage() {
   const { data, isLoading } = useSWR<{ windows: WindowWithSubmissions[] }>(
     "/api/admin/investment-windows",
@@ -115,6 +329,9 @@ export default function AdminFundingPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processMessage, setProcessMessage] = useState<string | null>(null);
   const [busyWindowId, setBusyWindowId] = useState<string | null>(null);
+  const [linkingMemberId, setLinkingMemberId] = useState<string | null>(null);
+  const [historyMemberId, setHistoryMemberId] = useState<string | null>(null);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const windows = useMemo(() => data?.windows || [], [data]);
   const accounts = useMemo(
@@ -235,6 +452,19 @@ export default function AdminFundingPage() {
       mutate("/api/admin/investment-windows");
     } finally {
       setBusyWindowId(null);
+    }
+  };
+
+  const handleUnlink = async (memberstackId: string) => {
+    setUnlinkingId(memberstackId);
+    try {
+      await fetch(
+        `/api/admin/stripe-accounts?memberstack_id=${memberstackId}`,
+        { method: "DELETE" }
+      );
+      mutate("/api/admin/stripe-accounts");
+    } finally {
+      setUnlinkingId(null);
     }
   };
 
@@ -647,47 +877,116 @@ export default function AdminFundingPage() {
           <p className="p-8 text-center text-muted">No members found.</p>
         ) : (
           <div className="divide-y divide-card-border/50">
-            {accounts.map((account) => (
-              <div
-                key={account.memberstackId}
-                className="flex items-start gap-3 px-4 py-3.5 sm:px-6"
-              >
-                <MemberAvatar name={account.memberName} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {account.memberName}
-                  </p>
-                  {account.stripeCustomerId ? (
-                    <>
-                      {account.bankAccounts.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {account.bankAccounts.map((bank) => (
-                            <span
-                              key={bank.id}
-                              className="inline-flex items-center gap-1.5 rounded-full bg-gain/10 px-2.5 py-0.5 text-[11px] font-medium text-gain"
-                            >
-                              <Building2 className="h-2.5 w-2.5" />
-                              {formatBankAccount(bank)}
-                            </span>
-                          ))}
-                        </div>
+            {accounts.map((account) => {
+              const isLinking = linkingMemberId === account.memberstackId;
+              const showHistory = historyMemberId === account.memberstackId;
+
+              return (
+                <div key={account.memberstackId}>
+                  <div className="flex items-start gap-3 px-4 py-3.5 sm:px-6">
+                    <MemberAvatar name={account.memberName} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {account.memberName}
+                        </p>
+                        {account.linkedManually && (
+                          <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
+                            Manually linked
+                          </span>
+                        )}
+                      </div>
+                      {account.stripeCustomerId ? (
+                        <>
+                          {account.bankAccounts.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {account.bankAccounts.map((bank) => (
+                                <span
+                                  key={bank.id}
+                                  className="inline-flex items-center gap-1.5 rounded-full bg-gain/10 px-2.5 py-0.5 text-[11px] font-medium text-gain"
+                                >
+                                  <Building2 className="h-2.5 w-2.5" />
+                                  {formatBankAccount(bank)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-muted">
+                              Linked — no bank saved yet
+                            </p>
+                          )}
+                          <p className="mt-1 font-mono text-[11px] text-muted/70">
+                            {account.stripeCustomerId}
+                          </p>
+                        </>
                       ) : (
                         <p className="mt-0.5 text-xs text-muted">
-                          Stripe customer created — no bank linked yet
+                          Not connected — link an existing customer, or it
+                          links automatically on their first contribution
                         </p>
                       )}
-                      <p className="mt-1 font-mono text-[11px] text-muted/70">
-                        {account.stripeCustomerId}
+                    </div>
+
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      {account.stripeCustomerId && (
+                        <button
+                          onClick={() =>
+                            setHistoryMemberId(
+                              showHistory ? null : account.memberstackId
+                            )
+                          }
+                          className="rounded-lg p-2 text-muted transition-colors hover:bg-card hover:text-gold"
+                          title="Payment history"
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() =>
+                          setLinkingMemberId(
+                            isLinking ? null : account.memberstackId
+                          )
+                        }
+                        className="rounded-lg px-2 py-1 text-[11px] font-medium text-muted transition-colors hover:bg-card hover:text-gold"
+                      >
+                        {account.stripeCustomerId ? "Change" : "Link"}
+                      </button>
+                      {account.stripeCustomerId && (
+                        <button
+                          onClick={() => handleUnlink(account.memberstackId)}
+                          disabled={unlinkingId === account.memberstackId}
+                          className="rounded-lg p-2 text-muted transition-colors hover:bg-card hover:text-loss disabled:opacity-50"
+                          title="Unlink (the Stripe customer is kept)"
+                        >
+                          {unlinkingId === account.memberstackId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Unlink className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {showHistory && account.stripeCustomerId && (
+                    <div className="border-t border-card-border/30 bg-card/50 px-4 py-3 sm:px-6">
+                      <p className="mb-2 text-xs font-medium text-muted">
+                        Stripe payment history
                       </p>
-                    </>
-                  ) : (
-                    <p className="mt-0.5 text-xs text-muted">
-                      Not yet connected — links on first contribution
-                    </p>
+                      <PaymentHistory memberstackId={account.memberstackId} />
+                    </div>
+                  )}
+
+                  {isLinking && (
+                    <LinkCustomerPanel
+                      member={account}
+                      onClose={() => setLinkingMemberId(null)}
+                      onLinked={() => mutate("/api/admin/stripe-accounts")}
+                    />
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

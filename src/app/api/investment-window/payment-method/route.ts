@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
 import { isStripeConfigured } from "@/lib/stripe";
-import { listBankAccounts } from "@/lib/stripeCustomers";
+import { listBankAccounts, listPaymentHistory } from "@/lib/stripeCustomers";
 
 /**
  * The signed-in member's own linked bank account(s), so they can confirm
@@ -14,7 +14,11 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
 
   if (!isStripeConfigured()) {
-    return NextResponse.json({ bankAccounts: [], configured: false });
+    return NextResponse.json({
+      bankAccounts: [],
+      payments: [],
+      configured: false,
+    });
   }
 
   try {
@@ -29,13 +33,24 @@ export async function GET(request: NextRequest) {
     const customerId = data?.[0]?.stripe_customer_id;
     if (!customerId) {
       // No customer yet — they'll link a bank on their first checkout
-      return NextResponse.json({ bankAccounts: [], configured: true });
+      return NextResponse.json({
+        bankAccounts: [],
+        payments: [],
+        configured: true,
+      });
     }
 
-    const bankAccounts = await listBankAccounts(customerId);
-    return NextResponse.json({ bankAccounts, configured: true });
+    const [bankAccounts, payments] = await Promise.all([
+      listBankAccounts(customerId),
+      listPaymentHistory(customerId, 10),
+    ]);
+    return NextResponse.json({ bankAccounts, payments, configured: true });
   } catch (err) {
     console.error("Error fetching member payment method:", err);
-    return NextResponse.json({ bankAccounts: [], configured: true });
+    return NextResponse.json({
+      bankAccounts: [],
+      payments: [],
+      configured: true,
+    });
   }
 }
