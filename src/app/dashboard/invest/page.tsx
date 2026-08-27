@@ -12,11 +12,16 @@ import {
   ArrowRight,
   ShieldCheck,
   History,
+  Building2,
 } from "lucide-react";
 import type {
   InvestmentWindow,
   SubmissionStatus,
 } from "@/types/database";
+import {
+  formatBankAccount,
+  type LinkedBankAccount,
+} from "@/lib/stripeCustomers";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -82,6 +87,11 @@ export default function InvestPage() {
     submissions: MySubmission[];
   }>("/api/investment-window", fetcher, { refreshInterval: 30 * 1000 });
 
+  const { data: paymentData } = useSWR<{
+    bankAccounts: LinkedBankAccount[];
+    configured: boolean;
+  }>("/api/investment-window/payment-method", fetcher);
+
   // Read Stripe return status from the query string (client-only)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -111,6 +121,7 @@ export default function InvestPage() {
   const invWindow = data?.window || null;
   const submissions = data?.submissions || [];
   const isOpen = invWindow?.is_open ?? false;
+  const bankAccounts = paymentData?.bankAccounts || [];
 
   const parsedAmount = parseFloat(amount);
   const amountValid =
@@ -310,6 +321,43 @@ export default function InvestPage() {
                   ? ` · Maximum ${formatMoney(invWindow.max_amount)}`
                   : ""}
               </p>
+            </div>
+
+            {/* Which bank account this will be drawn from */}
+            <div className="rounded-lg border border-card-border bg-card p-3.5">
+              <div className="flex items-start gap-2.5">
+                <Building2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-gold" />
+                <div className="min-w-0">
+                  {bankAccounts.length > 0 ? (
+                    <>
+                      <p className="text-xs font-medium text-muted">
+                        Paying from
+                      </p>
+                      {bankAccounts.map((account) => (
+                        <p
+                          key={account.id}
+                          className="text-sm font-semibold text-foreground"
+                        >
+                          {formatBankAccount(account)}
+                        </p>
+                      ))}
+                      <p className="mt-1 text-xs text-muted">
+                        You can choose a different bank at checkout.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-foreground">
+                        No bank account linked yet
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        You&apos;ll securely connect your bank at checkout.
+                        It will be saved for future contributions.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             {error && (

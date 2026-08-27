@@ -18,6 +18,8 @@ import {
   X,
   DollarSign,
   BadgeCheck,
+  Building2,
+  CreditCard,
 } from "lucide-react";
 import type {
   InvestmentWindow,
@@ -25,6 +27,10 @@ import type {
   SubmissionStatus,
 } from "@/types/database";
 import { MemberAvatar } from "@/components/ui/MemberAvatar";
+import {
+  formatBankAccount,
+  type MemberStripeInfo,
+} from "@/lib/stripeCustomers";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -91,6 +97,11 @@ export default function AdminFundingPage() {
     { refreshInterval: 30 * 1000 }
   );
 
+  const { data: accountsData } = useSWR<{
+    accounts: MemberStripeInfo[];
+    stripeConfigured: boolean;
+  }>("/api/admin/stripe-accounts", fetcher);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [opensAt, setOpensAt] = useState("");
@@ -106,6 +117,11 @@ export default function AdminFundingPage() {
   const [busyWindowId, setBusyWindowId] = useState<string | null>(null);
 
   const windows = useMemo(() => data?.windows || [], [data]);
+  const accounts = useMemo(
+    () => accountsData?.accounts || [],
+    [accountsData]
+  );
+  const linkedCount = accounts.filter((a) => a.stripeCustomerId).length;
 
   const stats = useMemo(() => {
     let raised = 0;
@@ -610,6 +626,71 @@ export default function AdminFundingPage() {
           })}
         </div>
       )}
+
+      {/* Member payment accounts */}
+      <div className="glass-card overflow-hidden">
+        <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-gold" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Member Payment Accounts
+            </h2>
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            {linkedCount} of {accounts.length} members have linked a bank
+            account. Details are masked by Stripe — full account numbers are
+            never stored or shown.
+          </p>
+        </div>
+
+        {accounts.length === 0 ? (
+          <p className="p-8 text-center text-muted">No members found.</p>
+        ) : (
+          <div className="divide-y divide-card-border/50">
+            {accounts.map((account) => (
+              <div
+                key={account.memberstackId}
+                className="flex items-start gap-3 px-4 py-3.5 sm:px-6"
+              >
+                <MemberAvatar name={account.memberName} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {account.memberName}
+                  </p>
+                  {account.stripeCustomerId ? (
+                    <>
+                      {account.bankAccounts.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {account.bankAccounts.map((bank) => (
+                            <span
+                              key={bank.id}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-gain/10 px-2.5 py-0.5 text-[11px] font-medium text-gain"
+                            >
+                              <Building2 className="h-2.5 w-2.5" />
+                              {formatBankAccount(bank)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-muted">
+                          Stripe customer created — no bank linked yet
+                        </p>
+                      )}
+                      <p className="mt-1 font-mono text-[11px] text-muted/70">
+                        {account.stripeCustomerId}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-0.5 text-xs text-muted">
+                      Not yet connected — links on first contribution
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

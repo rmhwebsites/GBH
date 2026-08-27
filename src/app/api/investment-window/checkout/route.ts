@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { getOrCreateStripeCustomer } from "@/lib/stripeCustomers";
 import type { InvestmentWindow } from "@/types/database";
 
 /**
@@ -117,6 +118,14 @@ export async function POST(request: NextRequest) {
     ).replace(/\/+$/, "");
     const stripe = getStripe();
 
+    // Reuse the member's Stripe customer so their linked bank account is
+    // remembered between windows (and visible to them before they pay)
+    const customerId = await getOrCreateStripeCustomer(supabase, {
+      memberstackId: auth.memberId,
+      name: memberName,
+      email: memberEmail,
+    });
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["us_bank_account"],
@@ -133,12 +142,14 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      customer_email: memberEmail || undefined,
+      customer: customerId,
       metadata: {
         submission_id: submission.id,
         memberstack_id: auth.memberId,
       },
       payment_intent_data: {
+        // Save the bank account to the customer for future contributions
+        setup_future_usage: "off_session",
         metadata: {
           submission_id: submission.id,
           memberstack_id: auth.memberId,
