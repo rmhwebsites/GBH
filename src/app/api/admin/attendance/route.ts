@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
 import type { MeetingAttendee } from "@/types/database";
 
@@ -8,12 +8,9 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
 
   try {
-    const supabase = createServerClient();
-
-    const { data: meetings, error: meetingsError } = await supabase
-      .from("meetings")
-      .select("*")
-      .order("meeting_date", { ascending: false });
+    const { data: meetings, error: meetingsError } = await withSchemaRetry((c) =>
+      c.from("meetings").select("*").order("meeting_date", { ascending: false })
+    );
 
     if (meetingsError) {
       return NextResponse.json(
@@ -22,10 +19,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: attendance, error: attendanceError } = await supabase
-      .from("meeting_attendance")
-      .select("meeting_id, memberstack_id, member_name")
-      .order("member_name");
+    const { data: attendance, error: attendanceError } = await withSchemaRetry(
+      (c) =>
+        c
+          .from("meeting_attendance")
+          .select("meeting_id, memberstack_id, member_name")
+          .order("member_name")
+    );
 
     if (attendanceError) {
       return NextResponse.json(
@@ -81,15 +81,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    const { data: meeting, error: meetingError } = await supabase
-      .from("meetings")
-      .insert({
-        meeting_date,
-        title: title || null,
-        notes: notes || null,
-      })
-      .select()
-      .single();
+    const { data: meeting, error: meetingError } = await withSchemaRetry((c) =>
+      c
+        .from("meetings")
+        .insert({
+          meeting_date,
+          title: title || null,
+          notes: notes || null,
+        })
+        .select()
+        .single()
+    );
 
     if (meetingError) {
       return NextResponse.json(

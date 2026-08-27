@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient, withSchemaRetry } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import {
@@ -38,9 +38,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Their Stripe customer mappings (table may not exist pre-migration)
-    const { data: links } = await supabase
-      .from("member_stripe_customers")
-      .select("memberstack_id, stripe_customer_id, linked_manually");
+    const linkResult = await withSchemaRetry((c) =>
+      c
+        .from("member_stripe_customers")
+        .select("memberstack_id, stripe_customer_id, linked_manually")
+    );
+    let links = linkResult.data;
+    const linkError = linkResult.error;
+
+    // Fall back if the linked_manually migration hasn't been run yet, so the
+    // roster still works rather than showing everyone as unlinked
+    if (linkError?.message?.includes("linked_manually")) {
+      const fallback = await withSchemaRetry((c) =>
+        c
+          .from("member_stripe_customers")
+          .select("memberstack_id, stripe_customer_id")
+      );
+      links = (fallback.data || []).map((l) => ({
+        ...l,
+        linked_manually: false,
+      }));
+    }
 
     const customerByMember = new Map<string, string>(
       (links || []).map((l) => [l.memberstack_id, l.stripe_customer_id])
