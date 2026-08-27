@@ -115,19 +115,34 @@ export async function linkStripeCustomer(
     manual: boolean;
   }
 ): Promise<void> {
-  const { error } = await supabase.from("member_stripe_customers").upsert(
-    {
-      memberstack_id: params.memberstackId,
-      stripe_customer_id: params.stripeCustomerId,
-      member_name: params.memberName,
-      member_email: params.memberEmail,
-      linked_manually: params.manual,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "memberstack_id" }
-  );
+  const base = {
+    memberstack_id: params.memberstackId,
+    stripe_customer_id: params.stripeCustomerId,
+    member_name: params.memberName,
+    member_email: params.memberEmail,
+    updated_at: new Date().toISOString(),
+  };
 
-  if (error) throw new Error(error.message);
+  const { error } = await supabase
+    .from("member_stripe_customers")
+    .upsert(
+      { ...base, linked_manually: params.manual },
+      { onConflict: "memberstack_id" }
+    );
+
+  if (!error) return;
+
+  // Fall back if the linked_manually migration hasn't been applied yet —
+  // linking still works, it just isn't flagged as manual
+  if (error.message.includes("linked_manually")) {
+    const { error: retryError } = await supabase
+      .from("member_stripe_customers")
+      .upsert(base, { onConflict: "memberstack_id" });
+    if (retryError) throw new Error(retryError.message);
+    return;
+  }
+
+  throw new Error(error.message);
 }
 
 /** Remove a member's Stripe customer link. The Stripe customer is untouched. */
