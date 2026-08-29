@@ -90,6 +90,7 @@ export default function InvestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [returnStatus, setReturnStatus] = useState<string | null>(null);
+  const [directResult, setDirectResult] = useState<string | null>(null);
 
   const { data, isLoading, mutate } = useSWR<{
     window: WindowWithState | null;
@@ -133,6 +134,7 @@ export default function InvestPage() {
   const isOpen = invWindow?.is_open ?? false;
   const bankAccounts = paymentData?.bankAccounts || [];
   const payments = paymentData?.payments || [];
+  const hasSavedBank = bankAccounts.length > 0;
 
   const parsedAmount = parseFloat(amount);
   const amountValid =
@@ -140,29 +142,50 @@ export default function InvestPage() {
     parsedAmount >= (invWindow?.min_amount ?? 0) &&
     (!invWindow?.max_amount || parsedAmount <= invWindow.max_amount);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (useNewBank = false) => {
     if (!amountValid) {
       setError("Enter a valid amount within the window limits.");
       return;
     }
     setSubmitting(true);
     setError(null);
+    setDirectResult(null);
 
     try {
       const res = await fetch("/api/investment-window/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: parsedAmount }),
+        body: JSON.stringify({ amount: parsedAmount, useNewBank }),
       });
       const body = await res.json();
 
-      if (!res.ok || !body.url) {
+      if (!res.ok) {
         setError(body.error || "Failed to start payment.");
         setSubmitting(false);
         return;
       }
 
-      // Off to Stripe Checkout (bank payment)
+      // Saved bank debited directly — no redirect needed
+      if (body.paid) {
+        const bank = body.bank?.last4
+          ? `${body.bank.bankName} ••••${body.bank.last4}`
+          : "your saved bank account";
+        setDirectResult(
+          `${formatMoney(parsedAmount)} is on its way from ${bank}.`
+        );
+        setAmount("");
+        setSubmitting(false);
+        mutate();
+        return;
+      }
+
+      if (!body.url) {
+        setError("Failed to start payment.");
+        setSubmitting(false);
+        return;
+      }
+
+      // No saved bank yet — go to Stripe Checkout to link one
       window.location.href = body.url;
     } catch {
       setError("Failed to start payment. Please try again.");
@@ -208,6 +231,24 @@ export default function InvestPage() {
               <p className="mt-1 text-sm text-muted">
                 No money moved. You can start a new contribution any time while
                 the window is open.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saved-bank debit succeeded (no redirect) */}
+      {directResult && (
+        <div className="glass-card border-gain/20 p-5">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-gain" />
+            <div>
+              <h3 className="font-medium text-foreground">
+                Contribution Started
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                {directResult} ACH transfers usually settle in about 4 business
+                days. Your units are granted once the fund processes it.
               </p>
             </div>
           </div>
@@ -379,7 +420,7 @@ export default function InvestPage() {
             )}
 
             <button
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
               disabled={submitting || !amountValid}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-6 py-3 text-sm font-semibold text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -391,15 +432,34 @@ export default function InvestPage() {
               {submitting
                 ? "Redirecting to payment..."
                 : amountValid
-                ? `Continue to Bank Payment — ${formatMoney(parsedAmount)}`
+                ? hasSavedBank
+                  ? `Invest ${formatMoney(parsedAmount)}`
+                  : `Continue to Bank Payment — ${formatMoney(parsedAmount)}`
+                : hasSavedBank
+                ? "Invest"
                 : "Continue to Bank Payment"}
-              {!submitting && <ArrowRight className="h-4 w-4" />}
+              {!submitting && !hasSavedBank && (
+                <ArrowRight className="h-4 w-4" />
+              )}
             </button>
+
+            {hasSavedBank && (
+              <button
+                onClick={() => handleSubmit(true)}
+                disabled={submitting || !amountValid}
+                className="w-full text-center text-xs text-muted underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
+              >
+                Use a different bank account
+              </button>
+            )}
 
             <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted/70">
               <ShieldCheck className="h-3.5 w-3.5" />
-              Secure bank payment (ACH) powered by Stripe. Units are granted at
-              the fund&apos;s NAV when your contribution is processed.
+              {hasSavedBank
+                ? "Your saved bank is debited securely via Stripe — no need to re-enter it."
+                : "Secure bank payment (ACH) powered by Stripe. Your bank is saved for next time."}{" "}
+              Units are granted at the fund&apos;s NAV when your contribution is
+              processed.
             </p>
           </div>
         </div>

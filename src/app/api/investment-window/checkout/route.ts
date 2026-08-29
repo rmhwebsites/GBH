@@ -7,8 +7,11 @@ import type { InvestmentWindow } from "@/types/database";
 
 /**
  * Member submits an investment amount during an open window.
- * Creates a submission row and a Stripe Checkout session (ACH bank debit),
- * returning the Checkout URL to redirect to.
+ *
+ * If they already have a saved bank account, it is debited directly and the
+ * response reports the payment as started. Otherwise a Stripe Checkout
+ * session is returned so they can link a bank, which is then saved for
+ * future contributions.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -24,6 +27,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const amount = Number(body.amount);
+    // Set when the member explicitly wants to use a different bank account
+    const useNewBank = Boolean(body.useNewBank);
 
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json(
@@ -111,8 +116,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: subError.message }, { status: 500 });
     }
 
-    // 6. Create the Stripe Checkout session (ACH debit — funds settle to
-    //    the fund's bank account on file with Stripe)
+    // Funds settle to the fund's bank account on file with Stripe
     const appUrl = (
       process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
     ).replace(/\/+$/, "");
@@ -126,6 +130,73 @@ export async function POST(request: NextRequest) {
       email: memberEmail,
     });
 
+    // 6. If they already have a saved bank account, debit it directly.
+    //    ACH mandates captured at the first checkout authorise later
+    //    off-session debits, so there is no redirect and nothing to re-enter.
+    if (!useNewBank) {
+      const saved = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: "us_bank_account",
+      });
+      const bank = saved.data[0];
+
+      if (bank) {
+        try {
+          const intent = await stripe.paymentIntents.create({
+            amount: amountCents,
+            currency: "usd",
+            customer: customerId,
+            payment_method: bank.id,
+            payment_method_types: ["us_bank_account"],
+            confirm: true,
+            off_session: true,
+            description: `GBH Capital — ${window.title}`,
+            metadata: {
+              submission_id: submission.id,
+              memberstack_id: auth.memberId,
+            },
+          });
+
+          // ACH settles asynchronously, so 'processing' is the normal result
+          const status =
+            intent.status === "succeeded"
+              ? "paid"
+              : intent.status === "processing"
+              ? "processing"
+              : null;
+
+          if (status) {
+            await supabase
+              .from("investment_submissions")
+              .update({
+                stripe_payment_intent: intent.id,
+                status,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", submission.id);
+
+            return NextResponse.json({
+              paid: true,
+              status,
+              bank: {
+                bankName: bank.us_bank_account?.bank_name || "your bank",
+                last4: bank.us_bank_account?.last4 || "",
+              },
+            });
+          }
+          // Anything else (e.g. the mandate needs re-authorisation) falls
+          // through to Checkout below rather than failing the member
+        } catch (err) {
+          console.error(
+            "Off-session debit failed; falling back to Checkout:",
+            err
+          );
+        }
+      }
+    }
+
+    // 7. No saved bank (or the direct debit could not proceed) — send them to
+    //    Checkout to link one. It is saved for future contributions.
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["us_bank_account"],
@@ -159,7 +230,7 @@ export async function POST(request: NextRequest) {
       cancel_url: `${appUrl}/dashboard/invest?status=canceled`,
     });
 
-    // 7. Attach the session id for webhook correlation
+    // 8. Attach the session id for webhook correlation
     await supabase
       .from("investment_submissions")
       .update({

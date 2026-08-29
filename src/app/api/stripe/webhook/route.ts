@@ -24,6 +24,9 @@ async function updateSubmission(
   nextStatus: SubmissionStatus,
   extra: Record<string, unknown> = {}
 ) {
+  // Nothing to correlate on (an unrelated payment intent) — ignore it
+  if (!submissionIdHint && !sessionId) return;
+
   const supabase = createServerClient();
 
   let query = supabase
@@ -131,6 +134,38 @@ export async function POST(request: NextRequest) {
           "canceled",
           { failure_reason: "Checkout session expired" }
         );
+        break;
+      }
+
+      // Direct off-session debits of a saved bank account emit
+      // payment_intent.* events rather than checkout.session.*
+      case "payment_intent.processing": {
+        const intent = event.data.object;
+        await updateSubmission(
+          "",
+          intent.metadata?.submission_id,
+          "processing",
+          { stripe_payment_intent: intent.id }
+        );
+        break;
+      }
+
+      case "payment_intent.succeeded": {
+        const intent = event.data.object;
+        await updateSubmission("", intent.metadata?.submission_id, "paid", {
+          stripe_payment_intent: intent.id,
+        });
+        break;
+      }
+
+      case "payment_intent.payment_failed": {
+        const intent = event.data.object;
+        await updateSubmission("", intent.metadata?.submission_id, "failed", {
+          stripe_payment_intent: intent.id,
+          failure_reason:
+            intent.last_payment_error?.message ||
+            "Bank payment failed or was returned",
+        });
         break;
       }
 
