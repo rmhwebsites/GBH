@@ -241,6 +241,10 @@ export interface InvestmentSubmission {
   /** Fund units bought, set when an admin processes the contribution */
   units_granted: number | null;
   nav_per_unit: number | null;
+  /** Set when a failed contribution no longer needs attention */
+  resolved_at: string | null;
+  /** Set when a bank return arrived after units were already granted */
+  reversal_flagged_at: string | null;
   created_at: string;
   updated_at: string;
 }

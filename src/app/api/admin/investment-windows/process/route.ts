@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAdmin, isAuthError } from "@/lib/auth";
 import { recordInvestment } from "@/lib/investments";
+import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
 /**
  * Convert a PAID submission into a member_investments record at live NAV.
@@ -45,6 +46,35 @@ export async function POST(request: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    // Units change the ownership split of the whole fund, so confirm the money
+    // actually settled with Stripe rather than trusting our own status — a
+    // missed or out-of-order webhook must never mint units for funds in
+    // transit. ACH sits in 'processing' for days before it truly clears.
+    if (isStripeConfigured() && submission.stripe_payment_intent) {
+      try {
+        const intent = await getStripe().paymentIntents.retrieve(
+          submission.stripe_payment_intent
+        );
+        if (intent.status !== "succeeded") {
+          return NextResponse.json(
+            {
+              error: `Stripe reports this payment as "${intent.status}", not settled. Units are only granted once funds have cleared.`,
+            },
+            { status: 409 }
+          );
+        }
+      } catch (err) {
+        console.error("Could not verify payment with Stripe:", err);
+        return NextResponse.json(
+          {
+            error:
+              "Could not verify the payment with Stripe. Try again shortly.",
+          },
+          { status: 502 }
+        );
+      }
     }
 
     // Claim the submission first so a double-click can't grant units twice —
@@ -100,5 +130,46 @@ export async function POST(request: NextRequest) {
     const message =
       err instanceof Error ? err.message : "Failed to process submission";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** Mark a failed contribution as resolved so it drops out of the active list. */
+export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (isAuthError(auth)) return auth;
+
+  try {
+    const { submission_id, resolved } = (await request.json()) as {
+      submission_id?: string;
+      resolved?: boolean;
+    };
+
+    if (!submission_id) {
+      return NextResponse.json(
+        { error: "Missing submission_id" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createServerClient();
+    const { error } = await supabase
+      .from("investment_submissions")
+      .update({
+        resolved_at: resolved === false ? null : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", submission_id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Error resolving submission:", err);
+    return NextResponse.json(
+      { error: "Failed to update submission" },
+      { status: 500 }
+    );
   }
 }

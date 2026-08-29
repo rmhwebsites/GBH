@@ -42,6 +42,8 @@ interface MySubmission {
   settled_at: string | null;
   units_granted: number | null;
   nav_per_unit: number | null;
+  is_resolved: boolean;
+  reversal_flagged_at: string | null;
 }
 
 const STATUS_META: Record<
@@ -138,11 +140,15 @@ export default function InvestPage() {
   const bankAccounts = paymentData?.bankAccounts || [];
   const hasSavedBank = bankAccounts.length > 0;
 
-  const realContributions = submissions.filter((s) =>
-    REAL_TRANSACTION_STATUSES.includes(s.status)
-  );
+  // A failure that has been resolved (or superseded by a later contribution)
+  // moves out of the active list — it no longer needs the member's attention
+  const isActiveTransaction = (s: MySubmission) =>
+    REAL_TRANSACTION_STATUSES.includes(s.status) &&
+    !(s.status === "failed" && s.is_resolved);
+
+  const realContributions = submissions.filter(isActiveTransaction);
   const incompleteContributions = submissions.filter(
-    (s) => !REAL_TRANSACTION_STATUSES.includes(s.status)
+    (s) => !isActiveTransaction(s)
   );
   const incompleteCount = incompleteContributions.length;
 
@@ -550,7 +556,7 @@ export default function InvestPage() {
                 onClick={() => setShowIncomplete(!showIncomplete)}
                 className="text-xs text-muted transition-colors hover:text-foreground"
               >
-                {showIncomplete ? "Hide" : "Show"} {incompleteCount} incomplete{" "}
+                {showIncomplete ? "Hide" : "Show"} {incompleteCount} past{" "}
                 {incompleteCount === 1 ? "attempt" : "attempts"}
               </button>
               {showIncomplete && (
@@ -563,7 +569,9 @@ export default function InvestPage() {
                       <span>
                         {formatMoney(sub.amount)} · {formatDateTime(sub.created_at)}
                       </span>
-                      <span>Not completed</span>
+                      <span>
+                        {sub.status === "failed" ? "Resolved" : "Not completed"}
+                      </span>
                     </div>
                   ))}
                 </div>

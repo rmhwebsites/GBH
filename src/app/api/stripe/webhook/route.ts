@@ -14,7 +14,7 @@ const ALLOWED_TRANSITIONS: Record<SubmissionStatus, SubmissionStatus[]> = {
   processing: ["paid", "failed"],
   canceled: ["processing", "paid"],
   failed: [],
-  paid: ["processed"],
+  paid: ["processed", "failed"],
   processed: [],
 };
 
@@ -47,6 +47,27 @@ async function updateSubmission(
   }
 
   const current = submission.status as SubmissionStatus;
+
+  // A return that lands after units were granted must not silently rewrite
+  // history: units are already distributed and only an admin can decide how
+  // to unwind that. Flag it for review instead of changing the status.
+  if (current === "processed" && nextStatus === "failed") {
+    await supabase
+      .from("investment_submissions")
+      .update({
+        reversal_flagged_at: new Date().toISOString(),
+        failure_reason:
+          (extra.failure_reason as string) ||
+          "Bank returned this payment after units were granted",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", submission.id);
+    console.error(
+      `Payment reversed after processing — submission ${submission.id} needs review`
+    );
+    return;
+  }
+
   if (!ALLOWED_TRANSITIONS[current].includes(nextStatus)) {
     return;
   }

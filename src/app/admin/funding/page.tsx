@@ -343,6 +343,7 @@ export default function AdminFundingPage() {
   const [linkingMemberId, setLinkingMemberId] = useState<string | null>(null);
   const [historyMemberId, setHistoryMemberId] = useState<string | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const windows = useMemo(() => data?.windows || [], [data]);
   const accounts = useMemo(
@@ -476,6 +477,20 @@ export default function AdminFundingPage() {
       mutate("/api/admin/stripe-accounts");
     } finally {
       setUnlinkingId(null);
+    }
+  };
+
+  const handleResolve = async (submissionId: string) => {
+    setResolvingId(submissionId);
+    try {
+      await fetch("/api/admin/investment-windows/process", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submission_id: submissionId, resolved: true }),
+      });
+      mutate("/api/admin/investment-windows");
+    } finally {
+      setResolvingId(null);
     }
   };
 
@@ -718,12 +733,11 @@ export default function AdminFundingPage() {
             const state = windowState(w);
             const stateMeta = STATE_META[state];
             const isExpanded = expandedId === w.id;
-            const realSubs = w.submissions.filter((s) =>
-              REAL_TRANSACTION_STATUSES.includes(s.status)
-            );
-            const incompleteSubs = w.submissions.filter(
-              (s) => !REAL_TRANSACTION_STATUSES.includes(s.status)
-            );
+            const isActive = (s: InvestmentSubmission) =>
+              REAL_TRANSACTION_STATUSES.includes(s.status) &&
+              !(s.status === "failed" && s.resolved_at);
+            const realSubs = w.submissions.filter(isActive);
+            const incompleteSubs = w.submissions.filter((s) => !isActive(s));
             const paidTotal = w.submissions
               .filter((s) => s.status === "paid" || s.status === "processed")
               .reduce((sum, s) => sum + s.amount, 0);
@@ -849,6 +863,13 @@ export default function AdminFundingPage() {
                                     ? ` · ${sub.failure_reason}`
                                     : ""}
                                 </p>
+                                {sub.reversal_flagged_at && (
+                                  <p className="mt-1 flex items-center gap-1.5 rounded bg-loss/10 px-2 py-1 text-xs font-medium text-loss">
+                                    <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                                    Bank returned this payment after units were
+                                    granted — needs review
+                                  </p>
+                                )}
                                 {sub.status === "processed" &&
                                   sub.units_granted != null && (
                                     <p className="mt-0.5 text-xs text-gain">
@@ -859,6 +880,20 @@ export default function AdminFundingPage() {
                                     </p>
                                   )}
                               </div>
+                              {sub.status === "failed" && !sub.resolved_at && (
+                                <button
+                                  onClick={() => handleResolve(sub.id)}
+                                  disabled={resolvingId === sub.id}
+                                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-card-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                                >
+                                  {resolvingId === sub.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-3 w-3" />
+                                  )}
+                                  Mark resolved
+                                </button>
+                              )}
                               {sub.status === "paid" && (
                                 <button
                                   onClick={() => handleProcess(sub.id)}

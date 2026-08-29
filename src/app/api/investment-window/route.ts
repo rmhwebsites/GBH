@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, withSchemaRetry } from "@/lib/supabase";
+import { withSchemaRetry } from "@/lib/supabase";
 import { requireAuth, isAuthError } from "@/lib/auth";
 import type { InvestmentWindow } from "@/types/database";
+import { isFailureResolved } from "@/lib/investments";
 
 export interface WindowStatusResponse {
   window: (InvestmentWindow & { is_open: boolean; is_upcoming: boolean }) | null;
@@ -17,8 +18,6 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
 
   try {
-    const supabase = createServerClient();
-
     const { data: windows, error } = await withSchemaRetry((c) =>
       c
         .from("investment_windows")
@@ -72,6 +71,7 @@ export async function GET(request: NextRequest) {
       submissions: (submissions || []).map((s) => ({
         ...s,
         window_title: windowTitles.get(s.window_id) || null,
+        is_resolved: isFailureResolved(s, submissions || []),
       })),
     });
   } catch (err) {

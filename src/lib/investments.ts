@@ -117,3 +117,29 @@ export async function recordInvestment(
 
   return { investment: data, navPerUnit, unitsGranted: unitsToGrant };
 }
+
+
+/**
+ * A failed contribution stops needing attention once it has been explicitly
+ * resolved, or once the member has made a later contribution that is on its
+ * way — the retry supersedes it. Resolved failures drop out of the active
+ * history rather than lingering as an unexplained red row.
+ */
+export function isFailureResolved(
+  submission: {
+    id: string;
+    status: string;
+    created_at: string;
+    resolved_at: string | null;
+  },
+  allForMember: { status: string; created_at: string }[]
+): boolean {
+  if (submission.status !== "failed") return false;
+  if (submission.resolved_at) return true;
+
+  return allForMember.some(
+    (other) =>
+      other.created_at > submission.created_at &&
+      ["processing", "paid", "processed"].includes(other.status)
+  );
+}
