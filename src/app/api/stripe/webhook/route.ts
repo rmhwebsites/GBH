@@ -56,6 +56,8 @@ async function updateSubmission(
     .update({
       status: nextStatus,
       updated_at: new Date().toISOString(),
+      // Record when the transfer actually cleared
+      ...(nextStatus === "paid" ? { settled_at: new Date().toISOString() } : {}),
       ...extra,
     })
     .eq("id", submission.id);

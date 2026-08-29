@@ -11,7 +11,6 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldCheck,
-  History,
   Building2,
   Receipt,
 } from "lucide-react";
@@ -22,15 +21,7 @@ import type {
 import {
   formatBankAccount,
   type LinkedBankAccount,
-  type PaymentHistoryItem,
 } from "@/lib/stripeCustomers";
-
-const PAYMENT_STATUS: Record<string, { label: string; classes: string }> = {
-  succeeded: { label: "Completed", classes: "text-gain" },
-  processing: { label: "Processing", classes: "text-gold" },
-  canceled: { label: "Canceled", classes: "text-muted" },
-  requires_payment_method: { label: "Failed", classes: "text-loss" },
-};
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -45,6 +36,12 @@ interface MySubmission {
   status: SubmissionStatus;
   failure_reason: string | null;
   created_at: string;
+  window_title: string | null;
+  bank_name: string | null;
+  bank_last4: string | null;
+  settled_at: string | null;
+  units_granted: number | null;
+  nav_per_unit: number | null;
 }
 
 const STATUS_META: Record<
@@ -52,18 +49,24 @@ const STATUS_META: Record<
   { label: string; classes: string }
 > = {
   pending_payment: {
-    label: "Awaiting payment",
+    label: "Not completed",
     classes: "bg-highlight text-muted",
   },
-  processing: {
-    label: "Bank transfer processing",
-    classes: "bg-gold/10 text-gold",
-  },
-  paid: { label: "Paid — entering fund", classes: "bg-gain/10 text-gain" },
-  processed: { label: "Invested", classes: "bg-gain/10 text-gain" },
-  failed: { label: "Payment failed", classes: "bg-loss/10 text-loss" },
-  canceled: { label: "Canceled", classes: "bg-highlight text-muted" },
+  processing: { label: "In transit", classes: "bg-gold/10 text-gold" },
+  paid: { label: "Received", classes: "bg-gain/10 text-gain" },
+  processed: { label: "Invested", classes: "bg-gain/20 text-gain" },
+  failed: { label: "Returned by bank", classes: "bg-loss/10 text-loss" },
+  canceled: { label: "Not completed", classes: "bg-highlight text-muted" },
 };
+
+// A contribution only counts as a transaction once money has actually moved.
+// Starting a checkout and closing it is a non-event, not a failure.
+const REAL_TRANSACTION_STATUSES: SubmissionStatus[] = [
+  "processing",
+  "paid",
+  "processed",
+  "failed",
+];
 
 const QUICK_AMOUNTS = [100, 250, 500, 1000];
 
@@ -91,6 +94,7 @@ export default function InvestPage() {
   const [error, setError] = useState<string | null>(null);
   const [returnStatus, setReturnStatus] = useState<string | null>(null);
   const [directResult, setDirectResult] = useState<string | null>(null);
+  const [showIncomplete, setShowIncomplete] = useState(false);
 
   const { data, isLoading, mutate } = useSWR<{
     window: WindowWithState | null;
@@ -99,7 +103,6 @@ export default function InvestPage() {
 
   const { data: paymentData } = useSWR<{
     bankAccounts: LinkedBankAccount[];
-    payments: PaymentHistoryItem[];
     configured: boolean;
   }>("/api/investment-window/payment-method", fetcher);
 
@@ -133,8 +136,15 @@ export default function InvestPage() {
   const submissions = data?.submissions || [];
   const isOpen = invWindow?.is_open ?? false;
   const bankAccounts = paymentData?.bankAccounts || [];
-  const payments = paymentData?.payments || [];
   const hasSavedBank = bankAccounts.length > 0;
+
+  const realContributions = submissions.filter((s) =>
+    REAL_TRANSACTION_STATUSES.includes(s.status)
+  );
+  const incompleteContributions = submissions.filter(
+    (s) => !REAL_TRANSACTION_STATUSES.includes(s.status)
+  );
+  const incompleteCount = incompleteContributions.length;
 
   const parsedAmount = parseFloat(amount);
   const amountValid =
@@ -465,94 +475,110 @@ export default function InvestPage() {
         </div>
       )}
 
-      {/* Full contribution history from Stripe */}
-      {payments.length > 0 && (
+      {/* Contribution history — one record per real transaction */}
+      {realContributions.length > 0 && (
         <div className="glass-card overflow-hidden">
           <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-gold" />
               <h2 className="text-lg font-semibold text-foreground">
-                Payment History
+                Contribution History
               </h2>
             </div>
-            <p className="mt-0.5 text-xs text-muted">
-              All contributions on record with our payment processor
-            </p>
           </div>
           <div className="divide-y divide-card-border/50">
-            {payments.map((payment) => {
-              const meta = PAYMENT_STATUS[payment.status] || {
-                label: payment.status,
-                classes: "text-muted",
-              };
+            {realContributions.map((sub) => {
+              const meta = STATUS_META[sub.status];
               return (
-                <div
-                  key={payment.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {formatMoney(payment.amount)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {new Date(payment.created * 1000).toLocaleDateString(
-                        "en-US",
-                        { month: "long", day: "numeric", year: "numeric" }
+                <div key={sub.id} className="px-4 py-4 sm:px-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatMoney(sub.amount)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {formatDateTime(sub.created_at)}
+                        {sub.window_title ? ` · ${sub.window_title}` : ""}
+                      </p>
+                      {sub.bank_last4 && (
+                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                          <Building2 className="h-3 w-3" />
+                          {sub.bank_name || "Bank"} ••••{sub.bank_last4}
+                        </p>
                       )}
-                    </p>
+                    </div>
+                    <span
+                      className={`flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${meta.classes}`}
+                    >
+                      {meta.label}
+                    </span>
                   </div>
-                  <span className={`text-xs font-medium ${meta.classes}`}>
-                    {meta.label}
-                  </span>
+
+                  {/* What the money actually bought */}
+                  {sub.status === "processed" && sub.units_granted != null && (
+                    <p className="mt-2 text-xs text-gain">
+                      {sub.units_granted.toFixed(4)} units
+                      {sub.nav_per_unit != null
+                        ? ` at ${formatMoney(sub.nav_per_unit)} per unit`
+                        : ""}
+                    </p>
+                  )}
+                  {sub.status === "processing" && (
+                    <p className="mt-2 text-xs text-muted">
+                      Bank transfers usually clear in about 4 business days.
+                    </p>
+                  )}
+                  {sub.status === "paid" && (
+                    <p className="mt-2 text-xs text-muted">
+                      Received{sub.settled_at ? ` ${formatDateTime(sub.settled_at)}` : ""} — units are granted when the fund processes it.
+                    </p>
+                  )}
+                  {sub.status === "failed" && sub.failure_reason && (
+                    <p className="mt-2 text-xs text-loss">
+                      {sub.failure_reason}
+                    </p>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {/* Incomplete attempts are not transactions — kept out of the way */}
+          {incompleteCount > 0 && (
+            <div className="border-t border-card-border/50 px-4 py-3 sm:px-6">
+              <button
+                onClick={() => setShowIncomplete(!showIncomplete)}
+                className="text-xs text-muted transition-colors hover:text-foreground"
+              >
+                {showIncomplete ? "Hide" : "Show"} {incompleteCount} incomplete{" "}
+                {incompleteCount === 1 ? "attempt" : "attempts"}
+              </button>
+              {showIncomplete && (
+                <div className="mt-2 space-y-1.5">
+                  {incompleteContributions.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between gap-2 text-xs text-muted"
+                    >
+                      <span>
+                        {formatMoney(sub.amount)} · {formatDateTime(sub.created_at)}
+                      </span>
+                      <span>Not completed</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* My submissions for this window */}
-      {submissions.length > 0 && (
-        <div className="glass-card overflow-hidden">
-          <div className="border-b border-card-border px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-gold" />
-              <h2 className="text-lg font-semibold text-foreground">
-                My Contributions
-              </h2>
-            </div>
-          </div>
-          <div className="divide-y divide-card-border/50">
-            {submissions.map((sub) => {
-              const meta = STATUS_META[sub.status];
-              return (
-                <div
-                  key={sub.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-6"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {formatMoney(sub.amount)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {formatDateTime(sub.created_at)}
-                    </p>
-                    {sub.failure_reason && sub.status === "failed" && (
-                      <p className="mt-0.5 text-xs text-loss">
-                        {sub.failure_reason}
-                      </p>
-                    )}
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${meta.classes}`}
-                  >
-                    {meta.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* First-time members with only incomplete attempts */}
+      {realContributions.length === 0 && incompleteCount > 0 && (
+        <p className="text-center text-xs text-muted">
+          No completed contributions yet. Incomplete attempts aren&apos;t
+          recorded as transactions.
+        </p>
       )}
     </div>
   );

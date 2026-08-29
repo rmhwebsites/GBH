@@ -41,7 +41,7 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
   succeeded: "Succeeded",
   processing: "Processing",
   canceled: "Canceled",
-  requires_payment_method: "Failed",
+  requires_payment_method: "Incomplete",
   requires_confirmation: "Incomplete",
   requires_action: "Action needed",
 };
@@ -50,7 +50,7 @@ function paymentStatusClasses(status: string): string {
   if (status === "succeeded") return "text-gain";
   if (status === "processing") return "text-gold";
   if (status === "canceled" || status === "requires_payment_method")
-    return "text-loss";
+    return "text-muted";
   return "text-muted";
 }
 
@@ -64,13 +64,24 @@ const STATUS_META: Record<
   SubmissionStatus,
   { label: string; classes: string }
 > = {
-  pending_payment: { label: "Pending", classes: "bg-highlight text-muted" },
-  processing: { label: "Processing", classes: "bg-gold/10 text-gold" },
-  paid: { label: "Paid", classes: "bg-gain/10 text-gain" },
+  pending_payment: {
+    label: "Not completed",
+    classes: "bg-highlight text-muted",
+  },
+  processing: { label: "In transit", classes: "bg-gold/10 text-gold" },
+  paid: { label: "Received", classes: "bg-gain/10 text-gain" },
   processed: { label: "Invested", classes: "bg-gain/20 text-gain" },
-  failed: { label: "Failed", classes: "bg-loss/10 text-loss" },
-  canceled: { label: "Canceled", classes: "bg-highlight text-muted" },
+  failed: { label: "Returned", classes: "bg-loss/10 text-loss" },
+  canceled: { label: "Not completed", classes: "bg-highlight text-muted" },
 };
+
+// Money only actually moved for these; the rest are abandoned attempts
+const REAL_TRANSACTION_STATUSES: SubmissionStatus[] = [
+  "processing",
+  "paid",
+  "processed",
+  "failed",
+];
 
 function toLocalInput(isoStr: string | null): string {
   if (!isoStr) return "";
@@ -707,6 +718,12 @@ export default function AdminFundingPage() {
             const state = windowState(w);
             const stateMeta = STATE_META[state];
             const isExpanded = expandedId === w.id;
+            const realSubs = w.submissions.filter((s) =>
+              REAL_TRANSACTION_STATUSES.includes(s.status)
+            );
+            const incompleteSubs = w.submissions.filter(
+              (s) => !REAL_TRANSACTION_STATUSES.includes(s.status)
+            );
             const paidTotal = w.submissions
               .filter((s) => s.status === "paid" || s.status === "processed")
               .reduce((sum, s) => sum + s.amount, 0);
@@ -738,8 +755,8 @@ export default function AdminFundingPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
-                          {w.submissions.length} submission
-                          {w.submissions.length !== 1 ? "s" : ""}
+                          {realSubs.length} contribution
+                          {realSubs.length !== 1 ? "s" : ""}
                         </span>
                         {paidTotal > 0 && (
                           <span className="flex items-center gap-1 font-medium text-gold">
@@ -793,13 +810,15 @@ export default function AdminFundingPage() {
                 {/* Submissions */}
                 {isExpanded && (
                   <div className="border-t border-card-border/30">
-                    {w.submissions.length === 0 ? (
+                    {realSubs.length === 0 ? (
                       <p className="p-4 text-sm text-muted sm:px-6">
-                        No submissions yet.
+                        {incompleteSubs.length > 0
+                          ? `No completed contributions yet (${incompleteSubs.length} incomplete ${incompleteSubs.length === 1 ? "attempt" : "attempts"}).`
+                          : "No submissions yet."}
                       </p>
                     ) : (
                       <div className="divide-y divide-card-border/50">
-                        {w.submissions.map((sub) => {
+                        {realSubs.map((sub) => {
                           const meta = STATUS_META[sub.status];
                           return (
                             <div
@@ -823,10 +842,22 @@ export default function AdminFundingPage() {
                                 </div>
                                 <p className="mt-0.5 text-xs text-muted">
                                   {formatDateTime(sub.created_at)}
+                                  {sub.bank_last4
+                                    ? ` · ${sub.bank_name || "Bank"} ••••${sub.bank_last4}`
+                                    : ""}
                                   {sub.failure_reason
                                     ? ` · ${sub.failure_reason}`
                                     : ""}
                                 </p>
+                                {sub.status === "processed" &&
+                                  sub.units_granted != null && (
+                                    <p className="mt-0.5 text-xs text-gain">
+                                      {sub.units_granted.toFixed(4)} units
+                                      {sub.nav_per_unit != null
+                                        ? ` @ ${formatMoney(sub.nav_per_unit)}`
+                                        : ""}
+                                    </p>
+                                  )}
                               </div>
                               {sub.status === "paid" && (
                                 <button
@@ -848,6 +879,13 @@ export default function AdminFundingPage() {
                           );
                         })}
                       </div>
+                    )}
+                    {realSubs.length > 0 && incompleteSubs.length > 0 && (
+                      <p className="border-t border-card-border/30 px-4 py-2 text-xs text-muted sm:px-6">
+                        {incompleteSubs.length} incomplete{" "}
+                        {incompleteSubs.length === 1 ? "attempt" : "attempts"}{" "}
+                        not shown — checkout started but never paid
+                      </p>
                     )}
                   </div>
                 )}

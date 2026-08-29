@@ -171,6 +171,9 @@ export async function POST(request: NextRequest) {
               .update({
                 stripe_payment_intent: intent.id,
                 status,
+                bank_name: bank.us_bank_account?.bank_name || null,
+                bank_last4: bank.us_bank_account?.last4 || null,
+                settled_at: status === "paid" ? new Date().toISOString() : null,
                 updated_at: new Date().toISOString(),
               })
               .eq("id", submission.id);

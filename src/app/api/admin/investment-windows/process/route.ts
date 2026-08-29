@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
         .from("investment_submissions")
         .update({
           processed_investment_id: result.investment.id,
+          units_granted: result.unitsGranted,
+          nav_per_unit: result.navPerUnit,
           updated_at: new Date().toISOString(),
         })
         .eq("id", submission_id);

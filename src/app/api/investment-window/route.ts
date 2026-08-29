@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
       c
         .from("investment_windows")
         .select("*")
-        .eq("is_active", true)
         .order("opens_at", { ascending: false })
     );
 
@@ -35,15 +34,16 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const all = (windows || []) as InvestmentWindow[];
 
-    const open = all.find(
+    const active = all.filter((w) => w.is_active);
+    const open = active.find(
       (w) => new Date(w.opens_at) <= now && now < new Date(w.closes_at)
     );
-    const upcoming = [...all]
+    const upcoming = [...active]
       .filter((w) => new Date(w.opens_at) > now)
       .sort(
         (a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime()
       )[0];
-    const recent = all.find((w) => new Date(w.closes_at) <= now);
+    const recent = active.find((w) => new Date(w.closes_at) <= now);
 
     const current = open || upcoming || recent || null;
 
@@ -51,14 +51,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ window: null, submissions: [] });
     }
 
-    const { data: submissions } = await supabase
-      .from("investment_submissions")
-      .select(
-        "id, window_id, amount, status, failure_reason, created_at, updated_at"
-      )
-      .eq("window_id", current.id)
-      .eq("memberstack_id", auth.memberId)
-      .order("created_at", { ascending: false });
+    // The member's full contribution history, across every window, so the
+    // page can show one coherent record rather than per-window fragments
+    const { data: submissions } = await withSchemaRetry((c) =>
+      c
+        .from("investment_submissions")
+        .select("*")
+        .eq("memberstack_id", auth.memberId)
+        .order("created_at", { ascending: false })
+    );
+
+    const windowTitles = new Map(all.map((w) => [w.id, w.title]));
 
     return NextResponse.json({
       window: {
@@ -66,7 +69,10 @@ export async function GET(request: NextRequest) {
         is_open: current === open,
         is_upcoming: current === upcoming && !open,
       },
-      submissions: submissions || [],
+      submissions: (submissions || []).map((s) => ({
+        ...s,
+        window_title: windowTitles.get(s.window_id) || null,
+      })),
     });
   } catch (err) {
     console.error("Error fetching investment window:", err);

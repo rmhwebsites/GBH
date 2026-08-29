@@ -233,6 +233,14 @@ export interface InvestmentSubmission {
   stripe_payment_intent: string | null;
   failure_reason: string | null;
   processed_investment_id: string | null;
+  /** Which bank was debited (masked) */
+  bank_name: string | null;
+  bank_last4: string | null;
+  /** When the ACH transfer actually cleared */
+  settled_at: string | null;
+  /** Fund units bought, set when an admin processes the contribution */
+  units_granted: number | null;
+  nav_per_unit: number | null;
   created_at: string;
   updated_at: string;
 }
