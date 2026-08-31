@@ -29,6 +29,24 @@ import { useVotingConfig } from "@/hooks/useVotingConfig";
 import { useInvestmentWindow } from "@/hooks/useInvestmentWindow";
 import { useTheme } from "@/components/providers/ThemeProvider";
 
+/**
+ * Pulsing notification dot. The wrapper must be `relative` — the pinging ring
+ * is absolutely positioned, and without a positioned ancestor it escapes to
+ * the fixed sidebar and pins itself to the corner.
+ */
+function NotificationDot({ className }: { className: string }) {
+  return (
+    <span className="relative ml-auto flex h-2 w-2">
+      <span
+        className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${className}`}
+      />
+      <span
+        className={`relative inline-flex h-2 w-2 rounded-full ${className}`}
+      />
+    </span>
+  );
+}
+
 const memberLinks = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
@@ -134,12 +152,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 <Icon className="h-4 w-4" />
                 {link.label}
-                {showBadge && (
-                  <span className="ml-auto flex h-2 w-2">
-                    <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-gold opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-gold" />
-                  </span>
-                )}
+                {showBadge && <NotificationDot className="bg-gold" />}
               </Link>
             );
           })}
@@ -157,10 +170,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
               <Landmark className="h-4 w-4" />
               Invest
               {investOpen && pathname !== "/dashboard/invest" && (
-                <span className="ml-auto flex h-2 w-2">
-                  <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-gain opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-gain" />
-                </span>
+                <NotificationDot className="bg-gain" />
               )}
             </Link>
           )}
