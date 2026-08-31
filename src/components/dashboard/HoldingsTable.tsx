@@ -32,7 +32,7 @@ export function HoldingsTable({ holdings }: Props) {
         <table className="w-full" style={{ minWidth: "480px" }}>
           <thead>
             <tr className="border-b border-card-border text-left text-[10px] uppercase tracking-wider text-muted sm:text-xs">
-              <th className="sticky left-0 z-10 bg-[rgba(0,13,26,0.85)] px-3 py-2.5 font-medium backdrop-blur-xl sm:px-6 sm:py-3">
+              <th className="sticky left-0 z-10 bg-sticky px-3 py-2.5 font-medium backdrop-blur-xl sm:px-6 sm:py-3">
                 Stock
               </th>
               <th className="px-2 py-2.5 font-medium text-right sm:px-4 sm:py-3">Price</th>
@@ -53,7 +53,7 @@ export function HoldingsTable({ holdings }: Props) {
                   className="group cursor-pointer border-b border-card-border/50 transition-all hover:bg-highlight"
                 >
                   {/* Stock — sticky on scroll */}
-                  <td className="sticky left-0 z-10 bg-[rgba(0,13,26,0.85)] px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
+                  <td className="sticky left-0 z-10 bg-sticky px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
                     <Link
                       href={`/dashboard/stock/${holding.ticker}`}
                       className="block"
@@ -61,10 +61,10 @@ export function HoldingsTable({ holdings }: Props) {
                       <div className="flex items-center gap-2 sm:gap-3">
                         <StockLogo ticker={holding.ticker} size={28} />
                         <div>
-                          <p className="text-xs font-medium text-foreground transition-colors group-hover:text-white sm:text-sm">
+                          <p className="text-xs font-medium text-foreground sm:text-sm">
                             {holding.ticker}
                           </p>
-                          <p className="hidden max-w-[100px] truncate text-[10px] text-muted transition-colors group-hover:text-white/60 sm:block sm:max-w-[140px] sm:text-xs">
+                          <p className="hidden max-w-[100px] truncate text-[10px] text-muted sm:block sm:max-w-[140px] sm:text-xs">
                             {holding.company_name}
                           </p>
                         </div>
@@ -72,7 +72,7 @@ export function HoldingsTable({ holdings }: Props) {
                     </Link>
                   </td>
                   {/* Current stock price */}
-                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground transition-colors group-hover:text-white sm:px-4 sm:py-4 sm:text-sm">
+                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground sm:px-4 sm:py-4 sm:text-sm">
                     {formatCurrency(holding.quote.price)}
                   </td>
                   {/* Day Change — per-share $ and % */}
@@ -102,11 +102,11 @@ export function HoldingsTable({ holdings }: Props) {
                     </div>
                   </td>
                   {/* Shares — hidden on mobile */}
-                  <td className="hidden px-2 py-3 text-right text-sm text-muted transition-colors group-hover:text-white/60 sm:table-cell sm:px-4 sm:py-4">
+                  <td className="hidden px-2 py-3 text-right text-sm text-muted sm:table-cell sm:px-4 sm:py-4">
                     {formatNumber(holding.shares)}
                   </td>
                   {/* Position Value */}
-                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground transition-colors group-hover:text-white sm:px-4 sm:py-4 sm:text-sm">
+                  <td className="px-2 py-3 text-right text-xs font-medium text-foreground sm:px-4 sm:py-4 sm:text-sm">
                     {formatCurrency(holding.currentValue)}
                   </td>
                   {/* Total Return — all-time position % ($ hidden on mobile) */}
