@@ -17,6 +17,7 @@ import {
   Users,
   TrendingUp,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import type { MemberInvestment } from "@/types/database";
 
@@ -39,6 +40,47 @@ const emptyForm: InvestmentForm = {
   investment_date: new Date().toISOString().split("T")[0],
   type: "invest",
 };
+
+/**
+ * Summary tile. The value sits on its own row at full card width — sharing a
+ * row with the icon left too little space and clipped longer currency values.
+ */
+function StatCard({
+  icon: Icon,
+  iconClass,
+  label,
+  value,
+  sub,
+  subClass,
+}: {
+  icon: LucideIcon;
+  iconClass: string;
+  label: string;
+  value: string;
+  sub?: string;
+  subClass?: string;
+}) {
+  return (
+    <div className="glass-card p-4 sm:p-5">
+      <div className="flex items-center gap-2">
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconClass}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <p className="truncate text-xs text-muted">{label}</p>
+      </div>
+      <p className="mt-2 text-lg font-semibold tabular-nums text-foreground xl:text-xl">
+        {value}
+      </p>
+      {sub && (
+        <p className={`text-xs tabular-nums ${subClass || "text-muted"}`}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function AdminInvestmentsPage() {
   const {
@@ -251,95 +293,44 @@ export default function AdminInvestmentsPage() {
 
       {/* Summary Totals */}
       {members.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-          <div className="glass-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
-                <Wallet className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted">Total Invested</p>
-                <p className="text-lg font-semibold text-foreground sm:text-xl">
-                  {formatCurrency(totalInvestedAllTime)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy/30 sm:h-10 sm:w-10">
-                <CalendarClock className="h-4 w-4 text-gold-light sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted">Last 12 Months</p>
-                <p className="text-lg font-semibold text-foreground sm:text-xl">
-                  {formatCurrency(totalInvestedLast12)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 sm:h-10 sm:w-10">
-                <Activity className="h-4 w-4 text-gold sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted">Avg Entry NAV</p>
-                <p className="text-lg font-semibold text-foreground sm:text-xl">
-                  {formatCurrency(avgNavAtEntry)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy/30 sm:h-10 sm:w-10">
-                <Users className="h-4 w-4 text-gold-light sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted">Members</p>
-                <p className="text-lg font-semibold text-foreground sm:text-xl">
-                  {memberSummaries.size}
-                </p>
-                <p className="text-xs text-muted">
-                  {members.length} record{members.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 sm:p-5">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 ${
-                  totalGainLossIsPositive ? "bg-gain/10" : "bg-loss/10"
-                }`}
-              >
-                <TrendingUp
-                  className={`h-4 w-4 sm:h-5 sm:w-5 ${
-                    totalGainLossIsPositive ? "text-gain" : "text-loss"
-                  }`}
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted">Total Value</p>
-                <p className="text-lg font-semibold text-foreground sm:text-xl">
-                  {formatCurrency(totalCurrentValue)}
-                </p>
-                <p
-                  className={`text-xs font-medium ${
-                    totalGainLossIsPositive ? "text-gain" : "text-loss"
-                  }`}
-                >
-                  {totalGainLossIsPositive ? "+" : ""}
-                  {formatCurrency(totalGainLoss)}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
+          <StatCard
+            icon={Wallet}
+            iconClass="bg-gold/10 text-gold"
+            label="Total Invested"
+            value={formatCurrency(totalInvestedAllTime)}
+          />
+          <StatCard
+            icon={CalendarClock}
+            iconClass="bg-gold/10 text-gold"
+            label="Last 12 Months"
+            value={formatCurrency(totalInvestedLast12)}
+          />
+          <StatCard
+            icon={Activity}
+            iconClass="bg-gold/10 text-gold"
+            label="Avg Entry NAV"
+            value={formatCurrency(avgNavAtEntry)}
+          />
+          <StatCard
+            icon={Users}
+            iconClass="bg-gold/10 text-gold"
+            label="Members"
+            value={String(memberSummaries.size)}
+            sub={`${members.length} record${members.length !== 1 ? "s" : ""}`}
+          />
+          <StatCard
+            icon={TrendingUp}
+            iconClass={
+              totalGainLossIsPositive
+                ? "bg-gain/10 text-gain"
+                : "bg-loss/10 text-loss"
+            }
+            label="Total Value"
+            value={formatCurrency(totalCurrentValue)}
+            sub={`${totalGainLossIsPositive ? "+" : ""}${formatCurrency(totalGainLoss)}`}
+            subClass={totalGainLossIsPositive ? "text-gain" : "text-loss"}
+          />
         </div>
       )}
 
