@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { sendTradeAlert } from "@/lib/emails";
 import { requireAdmin, isAuthError } from "@/lib/auth";
@@ -137,24 +137,55 @@ export async function POST(request: NextRequest) {
         .eq("id", cashHolding.id);
     }
 
-    // Send trade alert email to all members (fire-and-forget)
-    try {
-      const { data: memberRows } = await supabase
-        .from("member_investments")
-        .select("member_email, member_name, memberstack_id");
+    // Notify every member. `after` runs this once the response is sent while
+    // keeping the function alive — a bare un-awaited promise can be dropped
+    // when the serverless instance is frozen, silently losing the emails.
+    after(async () => {
+      try {
+        const { data: memberRows } = await supabase
+          .from("member_investments")
+          .select("member_email, member_name, memberstack_id");
 
-      if (memberRows && memberRows.length > 0) {
-        // Deduplicate by memberstack_id
-        const seen = new Set<string>();
-        const recipients: { email: string; name: string }[] = [];
-        for (const row of memberRows) {
-          if (!seen.has(row.memberstack_id)) {
-            seen.add(row.memberstack_id);
-            recipients.push({ email: row.member_email, name: row.member_name });
-          }
+        if (!memberRows || memberRows.length === 0) {
+          console.warn("Trade alert: no members found to notify");
+          return;
         }
 
-        sendTradeAlert(
+        // One email per person: dedupe by member, then by address, and drop
+        // anyone without a usable one — a single malformed address would
+        // otherwise fail the whole batch and nobody would be told.
+        const seenMember = new Set<string>();
+        const seenEmail = new Set<string>();
+        const recipients: { email: string; name: string }[] = [];
+        const skipped: string[] = [];
+
+        for (const row of memberRows) {
+          if (seenMember.has(row.memberstack_id)) continue;
+          seenMember.add(row.memberstack_id);
+
+          const email = (row.member_email || "").trim();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            skipped.push(row.member_name);
+            continue;
+          }
+          const key = email.toLowerCase();
+          if (seenEmail.has(key)) continue;
+          seenEmail.add(key);
+
+          recipients.push({ email, name: row.member_name });
+        }
+
+        if (skipped.length > 0) {
+          console.warn(
+            `Trade alert: no valid email for ${skipped.join(", ")}`
+          );
+        }
+        if (recipients.length === 0) {
+          console.error("Trade alert: no deliverable recipients");
+          return;
+        }
+
+        await sendTradeAlert(
           {
             ticker: body.ticker.toUpperCase(),
             companyName: body.company_name || body.ticker.toUpperCase(),
@@ -167,11 +198,11 @@ export async function POST(request: NextRequest) {
             notes: body.notes || undefined,
           },
           recipients
-        ).catch((err) => console.error("Trade alert email error:", err));
+        );
+      } catch (emailErr) {
+        console.error("Failed to send trade alert email:", emailErr);
       }
-    } catch (emailErr) {
-      console.error("Failed to queue trade alert email:", emailErr);
-    }
+    });
 
     return NextResponse.json({ trade }, { status: 201 });
   } catch (err) {

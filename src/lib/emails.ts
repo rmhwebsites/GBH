@@ -279,17 +279,41 @@ export async function sendTradeAlert(
     html,
   }));
 
-  try {
-    // Resend batch supports up to 100 emails per call
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
-      const batch = emailPayloads.slice(i, i + BATCH_SIZE);
-      await getResend().batch.send(batch);
+  // Resend resolves with { data, error } rather than throwing, so the result
+  // has to be inspected — otherwise a rejected batch looks like a success.
+  let sent = 0;
+  const failures: string[] = [];
+
+  const BATCH_SIZE = 100; // Resend allows up to 100 emails per batch call
+  for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
+    const batch = emailPayloads.slice(i, i + BATCH_SIZE);
+    try {
+      const { error } = await getResend().batch.send(batch);
+      if (error) {
+        failures.push(error.message);
+        console.error(
+          `Trade alert batch ${i / BATCH_SIZE + 1} rejected:`,
+          error.message
+        );
+      } else {
+        sent += batch.length;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      failures.push(message);
+      console.error(`Trade alert batch ${i / BATCH_SIZE + 1} threw:`, message);
     }
-    console.log(`Trade alert sent to ${recipients.length} member(s) via batch`);
-  } catch (err) {
-    console.error("Failed to send trade alert email:", err);
   }
+
+  if (sent === recipients.length) {
+    console.log(`Trade alert sent to all ${sent} member(s)`);
+  } else {
+    console.error(
+      `Trade alert delivered to ${sent}/${recipients.length} member(s). Failures: ${failures.join("; ")}`
+    );
+  }
+
+  return { sent, total: recipients.length, failures };
 }
 
 export async function sendInvestmentAlert(
@@ -307,14 +331,21 @@ export async function sendInvestmentAlert(
   const subject = `${isInvest ? "Investment" : "Withdrawal"} Confirmed: $${absAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   try {
-    await getResend().emails.send({
+    const { error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: recipientEmail,
       subject,
       html,
     });
+    if (error) {
+      console.error("Investment alert rejected:", error.message);
+      return { sent: false, error: error.message };
+    }
     console.log(`Investment alert sent to ${recipientEmail}`);
+    return { sent: true };
   } catch (err) {
-    console.error("Failed to send investment alert email:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Failed to send investment alert email:", message);
+    return { sent: false, error: message };
   }
 }
