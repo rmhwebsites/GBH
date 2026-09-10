@@ -738,6 +738,7 @@ export default function AdminFundingPage() {
               !(s.status === "failed" && s.resolved_at);
             const realSubs = w.submissions.filter(isActive);
             const incompleteSubs = w.submissions.filter((s) => !isActive(s));
+            // Investment only — fees are processing costs, not fund capital
             const paidTotal = w.submissions
               .filter((s) => s.status === "paid" || s.status === "processed")
               .reduce((sum, s) => sum + s.amount, 0);
@@ -856,6 +857,9 @@ export default function AdminFundingPage() {
                                 </div>
                                 <p className="mt-0.5 text-xs text-muted">
                                   {formatDateTime(sub.created_at)}
+                                  {sub.processing_fee
+                                    ? ` · ${formatMoney(sub.total_charged ?? sub.amount + sub.processing_fee)} charged (incl. ${formatMoney(sub.processing_fee)} fee)`
+                                    : ""}
                                   {sub.bank_last4
                                     ? ` · ${sub.bank_name || "Bank"} ••••${sub.bank_last4}`
                                     : ""}

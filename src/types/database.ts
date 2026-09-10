@@ -227,7 +227,12 @@ export interface InvestmentSubmission {
   memberstack_id: string;
   member_name: string;
   member_email: string | null;
+  /** The investment itself — what fund units are granted from */
   amount: number;
+  /** Flat fee charged on top, never converted into units */
+  processing_fee: number;
+  /** amount + processing_fee: what the member's bank was debited */
+  total_charged: number | null;
   status: SubmissionStatus;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;

@@ -4,6 +4,7 @@ import { requireAuth, isAuthError } from "@/lib/auth";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { getOrCreateStripeCustomer } from "@/lib/stripeCustomers";
 import type { InvestmentWindow } from "@/types/database";
+import { calculateContribution } from "@/lib/fees";
 
 /**
  * Member submits an investment amount during an open window.
@@ -36,9 +37,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // Normalize to cents to avoid float dust
-    const amountCents = Math.round(amount * 100);
-    const amountDollars = amountCents / 100;
+    // The member enters what they want to INVEST; the processing fee is
+    // charged on top. Units are granted from the investment only.
+    const { investment: amountDollars, fee, total } =
+      calculateContribution(amount);
+    const chargeCents = Math.round(total * 100);
 
     const supabase = createServerClient();
 
@@ -107,6 +110,8 @@ export async function POST(request: NextRequest) {
         member_name: memberName,
         member_email: memberEmail,
         amount: amountDollars,
+        processing_fee: fee,
+        total_charged: total,
         status: "pending_payment",
       })
       .select()
@@ -143,14 +148,14 @@ export async function POST(request: NextRequest) {
       if (bank) {
         try {
           const intent = await stripe.paymentIntents.create({
-            amount: amountCents,
+            amount: chargeCents,
             currency: "usd",
             customer: customerId,
             payment_method: bank.id,
             payment_method_types: ["us_bank_account"],
             confirm: true,
             off_session: true,
-            description: `GBH Capital — ${window.title}`,
+            description: `GBH Capital — ${window.title} ($${amountDollars.toLocaleString()} investment + $${fee} processing fee)`,
             metadata: {
               submission_id: submission.id,
               memberstack_id: auth.memberId,
@@ -181,6 +186,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               paid: true,
               status,
+              investment: amountDollars,
+              fee,
+              total,
               bank: {
                 bankName: bank.us_bank_account?.bank_name || "your bank",
                 last4: bank.us_bank_account?.last4 || "",
@@ -211,7 +219,15 @@ export async function POST(request: NextRequest) {
               name: `GBH Capital — ${window.title}`,
               description: `Investment contribution for ${memberName}`,
             },
-            unit_amount: amountCents,
+            unit_amount: Math.round(amountDollars * 100),
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: "usd",
+            product_data: { name: "Processing fee" },
+            unit_amount: Math.round(fee * 100),
           },
           quantity: 1,
         },

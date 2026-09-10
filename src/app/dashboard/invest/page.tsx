@@ -22,6 +22,7 @@ import {
   formatBankAccount,
   type LinkedBankAccount,
 } from "@/lib/stripeCustomers";
+import { calculateContribution, PROCESSING_FEE_USD } from "@/lib/fees";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -33,6 +34,8 @@ interface WindowWithState extends InvestmentWindow {
 interface MySubmission {
   id: string;
   amount: number;
+  processing_fee: number | null;
+  total_charged: number | null;
   status: SubmissionStatus;
   failure_reason: string | null;
   created_at: string;
@@ -153,6 +156,10 @@ export default function InvestPage() {
   const incompleteCount = incompleteContributions.length;
 
   const parsedAmount = parseFloat(amount);
+  // What they invest vs what their bank is actually debited
+  const charge = Number.isFinite(parsedAmount)
+    ? calculateContribution(parsedAmount)
+    : null;
   const amountValid =
     Number.isFinite(parsedAmount) &&
     parsedAmount >= (invWindow?.min_amount ?? 0) &&
@@ -186,8 +193,12 @@ export default function InvestPage() {
         const bank = body.bank?.last4
           ? `${body.bank.bankName} ••••${body.bank.last4}`
           : "your saved bank account";
+        const investedText = formatMoney(body.investment ?? parsedAmount);
+        const totalText = formatMoney(
+          body.total ?? parsedAmount + PROCESSING_FEE_USD
+        );
         setDirectResult(
-          `${formatMoney(parsedAmount)} is on its way from ${bank}.`
+          `${totalText} is on its way from ${bank} — ${investedText} invested plus the ${formatMoney(body.fee ?? PROCESSING_FEE_USD)} processing fee.`
         );
         setAmount("");
         setSubmitting(false);
@@ -389,6 +400,34 @@ export default function InvestPage() {
                   ? ` · Maximum ${formatMoney(invWindow.max_amount)}`
                   : ""}
               </p>
+
+              {/* Exactly what will leave their account */}
+              {charge && charge.investment > 0 && (
+                <div className="mt-3 rounded-lg border border-card-border bg-card p-3 text-sm">
+                  <div className="flex items-center justify-between text-muted">
+                    <span>Investment</span>
+                    <span className="tabular-nums">
+                      {formatMoney(charge.investment)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-muted">
+                    <span>Processing fee</span>
+                    <span className="tabular-nums">
+                      {formatMoney(charge.fee)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-card-border pt-2 font-semibold text-foreground">
+                    <span>Charged to your bank</span>
+                    <span className="tabular-nums">
+                      {formatMoney(charge.total)}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted">
+                    Only the {formatMoney(charge.investment)} investment buys
+                    fund units.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Which bank account this will be drawn from */}
@@ -447,10 +486,10 @@ export default function InvestPage() {
               )}
               {submitting
                 ? "Redirecting to payment..."
-                : amountValid
+                : amountValid && charge
                 ? hasSavedBank
-                  ? `Invest ${formatMoney(parsedAmount)}`
-                  : `Continue to Bank Payment — ${formatMoney(parsedAmount)}`
+                  ? `Invest — pay ${formatMoney(charge.total)}`
+                  : `Continue to Bank Payment — ${formatMoney(charge.total)}`
                 : hasSavedBank
                 ? "Invest"
                 : "Continue to Bank Payment"}
@@ -474,8 +513,9 @@ export default function InvestPage() {
               {hasSavedBank
                 ? "Your saved bank is debited securely via Stripe — no need to re-enter it."
                 : "Secure bank payment (ACH) powered by Stripe. Your bank is saved for next time."}{" "}
-              Units are granted at the fund&apos;s NAV when your contribution is
-              processed.
+              A ${PROCESSING_FEE_USD} processing fee is added to every
+              contribution. Units are granted at the fund&apos;s NAV on the
+              investment amount only.
             </p>
           </div>
         </div>
@@ -501,11 +541,23 @@ export default function InvestPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">
                         {formatMoney(sub.amount)}
+                        <span className="ml-1.5 text-xs font-normal text-muted">
+                          invested
+                        </span>
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
                         {formatDateTime(sub.created_at)}
                         {sub.window_title ? ` · ${sub.window_title}` : ""}
                       </p>
+                      {sub.processing_fee ? (
+                        <p className="mt-0.5 text-xs text-muted">
+                          {formatMoney(
+                            sub.total_charged ?? sub.amount + sub.processing_fee
+                          )}{" "}
+                          charged · includes {formatMoney(sub.processing_fee)}{" "}
+                          processing fee
+                        </p>
+                      ) : null}
                       {sub.bank_last4 && (
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
                           <Building2 className="h-3 w-3" />
