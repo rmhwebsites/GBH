@@ -387,6 +387,7 @@ export default function AnalyticsPage() {
             annualTotal={income.annualTotal}
             yieldPercent={income.yieldPercent}
             nonPaying={income.nonPaying}
+            nextPayment={income.nextPayment}
           />
         )}
 

@@ -3,9 +3,9 @@ import YahooFinance from "yahoo-finance2";
 const yahooFinance = new YahooFinance();
 
 /**
- * Distribution history is used to show what the CURRENT portfolio yields month
- * by month. Funds distribute quarterly, so this data changes a few times a year
- * — a long cache is appropriate and keeps the analytics page fast.
+ * Distribution history is used to project what the CURRENT portfolio will pay.
+ * Funds distribute quarterly, so this data changes only a few times a year —
+ * a long cache is appropriate and keeps the analytics page fast.
  */
 const CACHE_MS = 12 * 60 * 60 * 1000;
 const divCache = new Map<string, { data: DividendEvent[]; timestamp: number }>();
@@ -22,14 +22,14 @@ export interface MonthlyIncome {
   month: string;
   label: string;
   total: number;
-  /** income contributed by each ticker that paid in this month */
+  /** projected income from each ticker paying in this month */
   byTicker: Record<string, number>;
 }
 
 export interface IncomeSummary {
   months: MonthlyIncome[];
   annualTotal: number;
-  /** annual income as a share of the portfolio's current market value */
+  /** projected annual income as a share of current invested value */
   yieldPercent: number;
   perHolding: {
     ticker: string;
@@ -38,6 +38,8 @@ export interface IncomeSummary {
     paymentsPerYear: number;
   }[];
   nonPaying: string[];
+  /** soonest projected payment, for a "next payment" callout */
+  nextPayment: { month: string; label: string; amount: number } | null;
 }
 
 /** Ex-dividend events for a ticker over the trailing window. */
@@ -75,41 +77,40 @@ const MONTH_LABELS = [
 ];
 
 /**
- * Income the CURRENT holdings generate, month by month.
+ * Projected income for the NEXT 12 months from the holdings owned today.
  *
- * Each fund's own distribution history over the trailing year is applied to the
- * shares held today, so the result answers "what does this portfolio pay, and
- * when" rather than "what did we historically receive" — the portfolio was only
- * recently assembled, so actual receipts would be nearly empty and misleading.
+ * The portfolio was assembled recently, so what it received in the past is not
+ * its income — those positions were not held. Instead each fund's distribution
+ * calendar is projected forward at today's share counts.
  *
- * Distributions are quarterly and uneven, so the monthly shape matters: an
- * average would hide that December pays roughly double March.
+ * Projection is per calendar month, not a flat quarterly average, because
+ * distributions are seasonal: AVDE paid $1.166/share in June and $0.325 in
+ * September. Each future month therefore uses the most recent distribution
+ * from that same month of the year, preserving the real shape of the income.
  */
 export async function calculateIncome(
   holdings: { ticker: string; shares: number }[],
   portfolioValue: number,
   now: Date
 ): Promise<IncomeSummary> {
-  // 13 months back so the trailing four quarters are always fully covered
+  // 14 months back guarantees at least one observation of every calendar
+  // month a quarterly payer uses
   const since = new Date(now);
-  since.setMonth(since.getMonth() - 13);
+  since.setMonth(since.getMonth() - 14);
 
-  const buckets = new Map<string, MonthlyIncome>();
-  const perHolding: IncomeSummary["perHolding"] = [];
-  const nonPaying: string[] = [];
-
-  // Twelve month buckets ending with the current month, so the chart always
-  // spans a full year even for funds that skip a quarter
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-    buckets.set(key, {
-      month: key,
+  const buckets: MonthlyIncome[] = [];
+  for (let i = 1; i <= 12; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
+    buckets.push({
+      month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
       label: `${MONTH_LABELS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`,
       total: 0,
       byTicker: {},
     });
   }
+
+  const perHolding: IncomeSummary["perHolding"] = [];
+  const nonPaying: string[] = [];
 
   for (const h of holdings) {
     const events = await getDividendHistory(h.ticker, since);
@@ -118,18 +119,26 @@ export async function calculateIncome(
       continue;
     }
 
+    // Most recent per-share amount for each calendar month this fund pays in.
+    // Events arrive oldest-first, so a later year overwrites an earlier one.
+    const byCalendarMonth = new Map<number, number>();
+    for (const e of events) {
+      byCalendarMonth.set(Number(e.date.slice(5, 7)) - 1, e.perShare);
+    }
+
     let annual = 0;
     let payments = 0;
-    for (const e of events) {
-      const key = e.date.slice(0, 7);
-      const bucket = buckets.get(key);
-      if (!bucket) continue; // outside the 12-month window
-      const amount = h.shares * e.perShare;
+    for (const bucket of buckets) {
+      const monthIndex = Number(bucket.month.slice(5, 7)) - 1;
+      const perShare = byCalendarMonth.get(monthIndex);
+      if (perShare == null) continue;
+      const amount = h.shares * perShare;
       bucket.total += amount;
       bucket.byTicker[h.ticker] = (bucket.byTicker[h.ticker] || 0) + amount;
       annual += amount;
       payments++;
     }
+
     perHolding.push({
       ticker: h.ticker,
       shares: h.shares,
@@ -138,14 +147,17 @@ export async function calculateIncome(
     });
   }
 
-  const months = [...buckets.values()];
-  const annualTotal = months.reduce((s, m) => s + m.total, 0);
+  const annualTotal = buckets.reduce((s, m) => s + m.total, 0);
+  const next = buckets.find((m) => m.total > 0) || null;
 
   return {
-    months,
+    months: buckets,
     annualTotal,
     yieldPercent: portfolioValue > 0 ? (annualTotal / portfolioValue) * 100 : 0,
     perHolding: perHolding.sort((a, b) => b.annualIncome - a.annualIncome),
     nonPaying,
+    nextPayment: next
+      ? { month: next.month, label: next.label, amount: next.total }
+      : null,
   };
 }

@@ -25,19 +25,24 @@ interface Props {
   annualTotal: number;
   yieldPercent: number;
   nonPaying: string[];
+  nextPayment: { month: string; label: string; amount: number } | null;
 }
 
 /**
- * Dividend income by month for the current holdings.
+ * Projected dividend income for the next 12 months.
  *
- * Funds distribute quarterly and unevenly, so this is deliberately a monthly
- * bar chart rather than an average — the lumpiness is the point.
+ * Forward-looking rather than historical: these positions were bought
+ * recently, so past receipts describe a portfolio the fund did not own.
+ *
+ * Deliberately a monthly bar chart rather than an average — distributions are
+ * quarterly and seasonal, and that shape is the useful information.
  */
 export function IncomeChart({
   months,
   annualTotal,
   yieldPercent,
   nonPaying,
+  nextPayment,
 }: Props) {
   const { resolvedTheme } = useTheme();
   const colors = getChartTheme(resolvedTheme);
@@ -59,18 +64,13 @@ export function IncomeChart({
     __total: m.total,
   }));
 
-  const best = months.reduce(
-    (a, b) => (b.total > a.total ? b : a),
-    months[0] || { total: 0, label: "" }
-  );
-
   if (annualTotal <= 0) {
     return (
       <div className="glass-card p-5 sm:p-6">
         <div className="mb-2 flex items-center gap-2">
           <Coins className="h-4 w-4 text-gold" />
           <h2 className="text-lg font-semibold text-foreground">
-            Dividend Income
+            Projected Income
           </h2>
         </div>
         <p className="text-sm text-muted">
@@ -85,17 +85,18 @@ export function IncomeChart({
       <div className="mb-1 flex items-center gap-2">
         <Coins className="h-4 w-4 text-gold" />
         <h2 className="text-lg font-semibold text-foreground">
-          Dividend Income
+          Projected Income &mdash; Next 12 Months
         </h2>
       </div>
       <p className="mb-4 text-xs text-muted">
-        What today&apos;s holdings pay across a year, by month. Funds distribute
-        quarterly, so income arrives in steps rather than evenly.
+        What today&apos;s holdings are expected to pay over the coming year.
+        Funds distribute quarterly, so income arrives in steps rather than
+        evenly.
       </p>
 
       <div className="mb-5 grid grid-cols-3 gap-3">
         <div>
-          <p className="text-xs text-muted">Annual income</p>
+          <p className="text-xs text-muted">Next 12 months</p>
           <p className="text-lg font-semibold tabular-nums text-foreground">
             {formatCurrency(annualTotal)}
           </p>
@@ -107,12 +108,14 @@ export function IncomeChart({
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted">Biggest month</p>
+          <p className="text-xs text-muted">Next payment</p>
           <p className="text-lg font-semibold tabular-nums text-foreground">
-            {formatCurrency(best.total)}
-            <span className="ml-1 text-xs font-normal text-muted">
-              {best.label}
-            </span>
+            {nextPayment ? formatCurrency(nextPayment.amount) : "\u2014"}
+            {nextPayment && (
+              <span className="ml-1 text-xs font-normal text-muted">
+                {nextPayment.label}
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -183,8 +186,10 @@ export function IncomeChart({
         </p>
       )}
       <p className="mt-2 text-xs text-muted/70">
-        Based on each fund&apos;s distributions over the past year applied to
-        current share counts. Future payouts will differ.
+        Each month is projected from that fund&apos;s most recent distribution
+        for the same month of the year, at current share counts &mdash; so
+        seasonal differences are preserved. Distributions are not guaranteed
+        and actual amounts will differ.
       </p>
     </div>
   );
