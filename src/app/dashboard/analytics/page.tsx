@@ -22,6 +22,8 @@ import {
 import type { RiskMetrics } from "@/lib/risk";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { SectorChart } from "@/components/charts/SectorChart";
+import { IncomeChart } from "@/components/charts/IncomeChart";
+import type { IncomeSummary } from "@/lib/dividends";
 import type { PortfolioSummary } from "@/types/database";
 import {
   formatCurrency,
@@ -57,6 +59,11 @@ export default function AnalyticsPage() {
     `/api/portfolio/performance?period=${period}`,
     fetcher,
     { refreshInterval: 60 * 60 * 1000 } // refresh every hour
+  );
+
+  const { data: income } = useSWR<IncomeSummary>(
+    "/api/portfolio/income",
+    fetcher
   );
 
   const { data: riskData } = useSWR<{ metrics: RiskMetrics | null }>(
@@ -374,6 +381,15 @@ export default function AnalyticsPage() {
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Sector Allocation */}
+        {income && income.months.length > 0 && (
+          <IncomeChart
+            months={income.months}
+            annualTotal={income.annualTotal}
+            yieldPercent={income.yieldPercent}
+            nonPaying={income.nonPaying}
+          />
+        )}
+
         <SectorChart holdings={holdings} />
 
         {/* Concentration & Risk Metrics */}
