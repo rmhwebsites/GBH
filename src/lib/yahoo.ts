@@ -114,3 +114,34 @@ function getStartDate(period: string): Date {
       return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
   }
 }
+
+/**
+ * Daily TOTAL-RETURN series (dividends reinvested) for benchmarking.
+ *
+ * Kept separate from getHistoricalData on purpose. A fund's NAV includes every
+ * distribution it receives, so comparing it against a benchmark's raw closing
+ * price flatters the fund by the benchmark's dividend yield. Adjusted close
+ * puts both on the same footing. Price charts, by contrast, should keep
+ * showing prices that actually traded — hence a second function rather than
+ * changing the first.
+ *
+ * Always daily bars, so every NAV snapshot date has a matching benchmark bar.
+ */
+export async function getTotalReturnSeries(
+  ticker: string,
+  since: Date
+): Promise<{ date: string; value: number }[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: any = await yahooFinance.chart(ticker, {
+    period1: since,
+    interval: "1d",
+  });
+  return (result.quotes || [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((q: any) => q.adjclose != null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((q: any) => ({
+      date: new Date(q.date).toISOString().slice(0, 10),
+      value: q.adjclose as number,
+    }));
+}

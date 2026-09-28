@@ -1,14 +1,7 @@
 import YahooFinance from "yahoo-finance2";
+import { unstable_cache } from "next/cache";
 
-const yahooFinance = new YahooFinance();
-
-/**
- * Distribution history is used to project what the CURRENT portfolio will pay.
- * Funds distribute quarterly, so this data changes only a few times a year —
- * a long cache is appropriate and keeps the analytics page fast.
- */
-const CACHE_MS = 12 * 60 * 60 * 1000;
-const divCache = new Map<string, { data: DividendEvent[]; timestamp: number }>();
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 export interface DividendEvent {
   /** Ex-dividend date, ISO yyyy-mm-dd */
@@ -42,31 +35,40 @@ export interface IncomeSummary {
   nextPayment: { month: string; label: string; amount: number } | null;
 }
 
-/** Ex-dividend events for a ticker over the trailing window. */
-export async function getDividendHistory(
-  ticker: string,
-  since: Date
-): Promise<DividendEvent[]> {
-  const cached = divCache.get(ticker);
-  if (cached && Date.now() - cached.timestamp < CACHE_MS) {
-    return cached.data;
-  }
-
-  try {
+/**
+ * Ex-dividend events for a ticker over the last 18 months.
+ *
+ * Cached per ticker with unstable_cache so it survives serverless cold starts
+ * (an in-memory Map does not). The window is fixed inside the fetch so the
+ * cache key is just the ticker — passing a moving date would change the key
+ * on every call and never hit the cache.
+ *
+ * A failed lookup throws and is therefore not cached.
+ */
+const fetchDividendHistory = unstable_cache(
+  async (ticker: string): Promise<DividendEvent[]> => {
+    const since = new Date();
+    since.setMonth(since.getMonth() - 18);
     const chart = await yahooFinance.chart(ticker, {
       period1: since,
       interval: "1d",
       events: "div",
     });
-    const data: DividendEvent[] = (chart.events?.dividends || []).map((d) => ({
+    return (chart.events?.dividends || []).map((d) => ({
       date: new Date(d.date).toISOString().slice(0, 10),
       perShare: d.amount,
     }));
-    divCache.set(ticker, { data, timestamp: Date.now() });
-    return data;
+  },
+  ["dividend-history-v1"],
+  { revalidate: 60 * 60 * 12 }
+);
+
+export async function getDividendHistory(ticker: string): Promise<DividendEvent[]> {
+  try {
+    return await fetchDividendHistory(ticker);
   } catch {
-    // A ticker with no distributions (or a failed lookup) simply contributes
-    // no income — it must never break the whole chart.
+    // A ticker with no distributions (or a failed lookup) contributes no
+    // income — it must never break the whole chart.
     return [];
   }
 }
@@ -93,11 +95,6 @@ export async function calculateIncome(
   portfolioValue: number,
   now: Date
 ): Promise<IncomeSummary> {
-  // 14 months back guarantees at least one observation of every calendar
-  // month a quarterly payer uses
-  const since = new Date(now);
-  since.setMonth(since.getMonth() - 14);
-
   const buckets: MonthlyIncome[] = [];
   for (let i = 1; i <= 12; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
@@ -113,7 +110,7 @@ export async function calculateIncome(
   const nonPaying: string[] = [];
 
   for (const h of holdings) {
-    const events = await getDividendHistory(h.ticker, since);
+    const events = await getDividendHistory(h.ticker);
     if (events.length === 0) {
       nonPaying.push(h.ticker);
       continue;

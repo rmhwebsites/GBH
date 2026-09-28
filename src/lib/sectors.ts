@@ -14,7 +14,11 @@ export type GICSSector =
   | "Energy"
   | "Utilities"
   | "Real Estate"
-  | "Materials";
+  | "Materials"
+  // A holding we have no classification for. Shown honestly rather than
+  // guessed — the old fallback labelled every unknown ticker as Information
+  // Technology, which is how a portfolio of index funds rendered as 100% IT.
+  | "Unclassified";
 
 // Comprehensive ticker-to-sector mapping
 const TICKER_SECTOR_MAP: Record<string, GICSSector> = {
@@ -332,11 +336,12 @@ export const SECTOR_COLORS: Record<GICSSector, string> = {
   Utilities: "#8FCE5C",
   "Real Estate": "#5C6ECE",
   Materials: "#CEC45C",
+  Unclassified: "#8A8F98",
 };
 
 export function getSector(ticker: string): GICSSector {
   const upper = ticker.toUpperCase();
-  return TICKER_SECTOR_MAP[upper] || "Information Technology"; // fallback
+  return TICKER_SECTOR_MAP[upper] || "Unclassified";
 }
 
 export interface SectorAllocation {

@@ -17,7 +17,7 @@ import type { MonthlyIncome } from "@/lib/dividends";
 
 // Distinct enough to tell apart in a stack, and stable per fund
 const SERIES_COLORS = [
-  "#CE9C5C", "#5CA0CE", "#7FB069", "#C97B84", "#9B8AC4", "#D9A441", "#6BAFA0",
+  "#CE9C5C", "#5CA0CE", "#7FB069", "#C97B84", "#9B8AC4", "#8C9BB0", "#6BAFA0",
 ];
 
 interface Props {
@@ -70,7 +70,7 @@ export function IncomeChart({
         <div className="mb-2 flex items-center gap-2">
           <Coins className="h-4 w-4 text-gold" />
           <h2 className="text-lg font-semibold text-foreground">
-            Projected Income
+            Income over the next 12 months
           </h2>
         </div>
         <p className="text-sm text-muted">
@@ -85,7 +85,7 @@ export function IncomeChart({
       <div className="mb-1 flex items-center gap-2">
         <Coins className="h-4 w-4 text-gold" />
         <h2 className="text-lg font-semibold text-foreground">
-          Projected Income &mdash; Next 12 Months
+          Income over the next 12 months
         </h2>
       </div>
       <p className="mb-4 text-xs text-muted">
@@ -112,7 +112,7 @@ export function IncomeChart({
           <p className="text-lg font-semibold tabular-nums text-foreground">
             {nextPayment ? formatCurrency(nextPayment.amount) : "\u2014"}
             {nextPayment && (
-              <span className="ml-1 text-xs font-normal text-muted">
+              <span className="block text-xs font-normal text-muted sm:ml-1 sm:inline">
                 {nextPayment.label}
               </span>
             )}
